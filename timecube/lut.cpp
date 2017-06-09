@@ -80,7 +80,8 @@ public:
 
 	void process(const void * const src[3], void * const dst[3], unsigned width) override
 	{
-		unsigned lut_max = static_cast<unsigned>(m_lut[0].size() - 1);
+		uint_least32_t lut_max = static_cast<uint_least32_t>(m_lut[0].size() - 1);
+		float lut_clamp = std::nextafterf(static_cast<float>(lut_max), -INFINITY);
 
 		for (unsigned p = 0; p < 3; ++p) {
 			const float *src_p = static_cast<const float *>(src[p]);
@@ -88,12 +89,13 @@ public:
 
 			for (unsigned i = 0; i < width; ++i) {
 				float x, d;
-				unsigned idx;
+				uint_least32_t idx;
 
 				x = src_p[i];
 				x = (x * m_scale[p] + m_offset[p]) * lut_max;
 
-				idx = std::min(static_cast<unsigned>(x), lut_max);
+				x = std::min(std::max(x, 0.0f), lut_clamp);
+				idx = static_cast<uint_least32_t>(x);
 				d = x - idx;
 
 				x = interp(m_lut[p][idx], m_lut[p][idx + 1], d);
@@ -105,7 +107,7 @@ public:
 
 class Lut3D : public Lut {
 	std::vector<Vector3> m_lut;
-	unsigned m_dim;
+	uint_least32_t m_dim;
 	float m_scale[3];
 	float m_offset[3];
 public:
@@ -137,12 +139,13 @@ public:
 		float *dst_g = static_cast<float *>(dst[1]);
 		float *dst_b = static_cast<float *>(dst[2]);
 
-		unsigned lut_max = m_dim - 1;
+		uint_least32_t lut_max = m_dim - 1;
+		float lut_clamp = std::nextafterf(static_cast<float>(lut_max), -INFINITY);
 
 		for (unsigned i = 0; i < width; ++i) {
 			float r, g, b;
 			float dist_r, dist_g, dist_b;
-			unsigned idx_r, idx_g, idx_b;
+			uint_least32_t idx_r, idx_g, idx_b;
 
 			Vector3 tri[2][2][2];
 			Vector3 interp_result;
@@ -155,9 +158,13 @@ public:
 			g = (g * m_scale[1] + m_offset[1]) * lut_max;
 			b = (b * m_scale[2] + m_offset[2]) * lut_max;
 
-			idx_r = std::min(static_cast<unsigned>(r), lut_max);
-			idx_g = std::min(static_cast<unsigned>(g), lut_max);
-			idx_b = std::min(static_cast<unsigned>(b), lut_max);
+			r = std::min(std::max(r, 0.0f), lut_clamp);
+			g = std::min(std::max(g, 0.0f), lut_clamp);
+			b = std::min(std::max(b, 0.0f), lut_clamp);
+
+			idx_r = static_cast<uint_least32_t>(r);
+			idx_g = static_cast<uint_least32_t>(g);
+			idx_b = static_cast<uint_least32_t>(b);
 
 			dist_r = r - idx_r;
 			dist_g = g - idx_g;
