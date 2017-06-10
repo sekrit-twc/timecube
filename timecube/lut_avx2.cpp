@@ -46,77 +46,6 @@ struct AlignedAllocator {
 };
 
 
-// Unpack LUT data.
-//
-// In:
-// row0: [R0 G0 B0 xx R1 G1 B1 xx]
-// row1-7: ...
-//
-// Out:
-// row0: [R0 R0 R0 R0 R0 R0 R0 R0]
-// row1: B
-// row2: G
-// row3: unused
-// row4: [R1 R1 R1 R1 R1 R1 R1 R1]
-// row5: G
-// row6: B
-static inline FORCE_INLINE void lut3d_transpose_coeffs(__m256 &row0, __m256 &row1, __m256 &row2, __m256 &row3, __m256 &row4, __m256 &row5, __m256 &row6, __m256 &row7)
-{
-	__m256 t0, t1, t2, t3, t4, t5, t6, t7;
-	__m256 tt0, tt1, tt2, /* tt3, */ tt4, tt5, tt6 /* , tt7 */;
-	t0 = _mm256_unpacklo_ps(row0, row1);
-	t1 = _mm256_unpackhi_ps(row0, row1);
-	t2 = _mm256_unpacklo_ps(row2, row3);
-	t3 = _mm256_unpackhi_ps(row2, row3);
-	t4 = _mm256_unpacklo_ps(row4, row5);
-	t5 = _mm256_unpackhi_ps(row4, row5);
-	t6 = _mm256_unpacklo_ps(row6, row7);
-	t7 = _mm256_unpackhi_ps(row6, row7);
-	tt0 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(1, 0, 1, 0));
-	tt1 = _mm256_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 2, 3, 2));
-	tt2 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0));
-	// tt3 = _mm256_shuffle_ps(t1, t3, _MM_SHUFFLE(3, 2, 3, 2));
-	tt4 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(1, 0, 1, 0));
-	tt5 = _mm256_shuffle_ps(t4, t6, _MM_SHUFFLE(3, 2, 3, 2));
-	tt6 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(1, 0, 1, 0));
-	// tt7 = _mm256_shuffle_ps(t5, t7, _MM_SHUFFLE(3, 2, 3, 2));
-	row0 = _mm256_permute2f128_ps(tt0, tt4, 0x20);
-	row1 = _mm256_permute2f128_ps(tt1, tt5, 0x20);
-	row2 = _mm256_permute2f128_ps(tt2, tt6, 0x20);
-	// row3 = _mm256_permute2f128_ps(tt3, tt7, 0x20);
-	row4 = _mm256_permute2f128_ps(tt0, tt4, 0x31);
-	row5 = _mm256_permute2f128_ps(tt1, tt5, 0x31);
-	row6 = _mm256_permute2f128_ps(tt2, tt6, 0x31);
-	// row7 = _mm256_permute2f128_ps(tt3, tt7, 0x31);
-}
-
-// Loads packed vertices for R0-Gx-Bx and R1-Gx-Bx.
-static inline FORCE_INLINE void lut3d_load_vertex(const void *lut, const __m256i offset, __m256 &r0, __m256 &g0, __m256 &b0, __m256 &r1, __m256 &g1, __m256 &b1)
-{
-#define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
-	__m128i offset_lo = _mm256_castsi256_si128(offset);
-	__m128i offset_hi = _mm256_extracti128_si256(offset, 1);
-
-	__m256 row0 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 0)));
-	__m256 row1 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 1)));
-	__m256 row2 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 2)));
-	__m256 row3 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 3)));
-	__m256 row4 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 0)));
-	__m256 row5 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 1)));
-	__m256 row6 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 2)));
-	__m256 row7 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 3)));
-
-	lut3d_transpose_coeffs(row0, row1, row2, row3, row4, row5, row6, row7);
-
-	r0 = row0;
-	g0 = row1;
-	b0 = row2;
-	r1 = row4;
-	g1 = row5;
-	b1 = row6;
-#undef LUT_OFFSET
-}
-
 static inline FORCE_INLINE __m256 mm256_interp_ps(__m256 lo, __m256 hi, __m256 dist)
 {
 	__m256 x;
@@ -127,6 +56,86 @@ static inline FORCE_INLINE __m256 mm256_interp_ps(__m256 lo, __m256 hi, __m256 d
 	x = _mm256_fmadd_ps(dist, hi, x);
 
 	return x;
+}
+
+// 2x2 transpose of 128-bit elements.
+static inline FORCE_INLINE void mm256_transpose2_ps128(__m256 &a, __m256 &b)
+{
+	__m256 tmp0 = a;
+	__m256 tmp1 = b;
+	a = _mm256_permute2f128_ps(tmp0, tmp1, 0x20);
+	b = _mm256_permute2f128_ps(tmp0, tmp1, 0x31);
+}
+
+static inline FORCE_INLINE __m256i lut3d_calculate_index(const __m256 &r, const __m256 &g, const __m256 &b, const __m256i &stride_g, const __m256i &stride_b)
+{
+	__m256i idx_r, idx_g, idx_b;
+
+	idx_r = _mm256_cvttps_epi32(r);
+	idx_r = _mm256_slli_epi32(idx_r, 4); // 16 byte entries.
+
+	idx_g = _mm256_cvttps_epi32(g);
+	idx_g = _mm256_mullo_epi32(idx_g, stride_g);
+
+	idx_b = _mm256_cvttps_epi32(b);
+	idx_b = _mm256_mullo_epi32(idx_b, stride_b);
+
+	return _mm256_add_epi32(_mm256_add_epi32(idx_r, idx_g), idx_b);
+}
+
+// Performs trilinear interpolation on two pixels.
+// Returns [R0 G0 B0 xx R1 G1 B1 xx].
+static inline FORCE_INLINE __m256 lut3d_trilinear_interp(const void *lut, ptrdiff_t stride_g, ptrdiff_t stride_b, ptrdiff_t idx_lo, ptrdiff_t idx_hi,
+                                                         const __m256 &r, const __m256 &g, const __m256 &b)
+{
+#define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
+	__m256 g0b0_a, g0b1_a, g1b0_a, g1b1_a;
+	__m256 g0b0_b, g0b1_b, g1b0_b, g1b1_b;
+
+	g0b0_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo));
+	g1b0_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo + stride_g));
+	g0b1_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo + stride_b));
+	g1b1_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo + stride_b + stride_g));
+
+	g0b0_a = mm256_interp_ps(g0b0_a, g1b0_a, g);
+	g0b1_a = mm256_interp_ps(g0b1_a, g1b1_a, g);
+
+	g0b0_a = mm256_interp_ps(g0b0_a, g0b1_a, b);
+
+	g0b0_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi));
+	g1b0_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_g));
+	g0b1_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_b));
+	g1b1_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_b + stride_g));
+
+	g0b0_b = mm256_interp_ps(g0b0_b, g1b0_b, g);
+	g0b1_b = mm256_interp_ps(g0b1_b, g1b1_b, g);
+
+	g0b0_b = mm256_interp_ps(g0b0_b, g0b1_b, b);
+
+	mm256_transpose2_ps128(g0b0_a, g0b0_b);
+	g0b0_a = mm256_interp_ps(g0b0_a, g0b0_b, r);
+
+	return g0b0_a;
+#undef LUT_OFFSET
+}
+
+// Converts packed [R0 G0 B0 xx R4 G4 B4 xx] [R1 G1 B1 xx R5 G5 B5 xx] ... to [R1 R2 ...] [G1 G2 ...] [B1 B2 ... ].
+static inline FORCE_INLINE void lut3d_unpack_result(const __m256 &result04, const __m256 &result15, const __m256 &result26, const __m256 &result37,
+                                                    __m256 &r, __m256 &g, __m256 &b)
+{
+	__m256 t0 = _mm256_shuffle_ps(result04, result15, 0x44);
+	__m256 t1 = _mm256_shuffle_ps(result26, result37, 0x44);
+	__m256 t2 = _mm256_shuffle_ps(result04, result15, 0xEE);
+	__m256 t3 = _mm256_shuffle_ps(result26, result37, 0xEE);
+	
+	__m256 tt0 = _mm256_shuffle_ps(t0, t1, 0x88); // r0 r1 r2 r3 | r4 r5 r6 r7
+	__m256 tt1 = _mm256_shuffle_ps(t0, t1, 0xDD); // g0 g1 g2 g3 | g4 g5 g6 g7
+	__m256 tt2 = _mm256_shuffle_ps(t2, t3, 0x88); // b0 b1 b2 b3 | b4 b5 b6 b7
+	// __m256 tt3 = _mm256_shuffle_ps(t2, t3, 0xDD);
+
+	r = tt0;
+	g = tt1;
+	b = tt2;
 }
 
 class Lut3D_AVX2 final : public Lut {
@@ -158,6 +167,8 @@ public:
 	void process(const void * const src[3], void * const dst[3], unsigned width) override
 	{
 		const float *lut = m_lut.data();
+		uint32_t lut_stride_g = m_dim * sizeof(float) * 4;
+		uint32_t lut_stride_b = m_dim * m_dim * sizeof(float) * 4;
 
 		const float *src_r = static_cast<const float *>(src[0]);
 		const float *src_g = static_cast<const float *>(src[1]);
@@ -174,21 +185,27 @@ public:
 		const __m256 offset_b = _mm256_broadcast_ss(m_offset + 2);
 
 		const __m256 lut_max = _mm256_set1_ps(std::nextafter(static_cast<float>(m_dim - 1), -INFINITY));
-		const __m256i lut_dim = _mm256_set1_epi32(m_dim);
-		const __m256i lut_dim_sq = _mm256_set1_epi32(m_dim * m_dim);
+		const __m256i lut_stride_g_epi32 = _mm256_set1_epi32(lut_stride_g);
+		const __m256i lut_stride_b_epi32 = _mm256_set1_epi32(lut_stride_b);
+
+		const __m256i permute01_mask = _mm256_set_epi32(1, 1, 1, 1, 0, 0, 0, 0);
+		const __m256i permute23_mask = _mm256_set_epi32(3, 3, 3, 3, 2, 2, 2, 2);
+		const __m256i permute45_mask = _mm256_set_epi32(5, 5, 5, 5, 4, 4, 4, 4);
+		const __m256i permute67_mask = _mm256_set_epi32(7, 7, 7, 7, 6, 6, 6, 6);
 
 		for (unsigned i = 0; i < width; i += 8) {
 			__m256 r = _mm256_load_ps(src_r + i);
 			__m256 g = _mm256_load_ps(src_g + i);
 			__m256 b = _mm256_load_ps(src_b + i);
 
-			__m256 lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1;
-			__m256 tmp0_r, tmp1_r, tmp2_r, tmp3_r;
-			__m256 tmp0_g, tmp1_g, tmp2_g, tmp3_g;
-			__m256 tmp0_b, tmp1_b, tmp2_b, tmp3_b;
+			__m256 result04, result15, result26, result37;
+			__m256 rtmp, gtmp, btmp;
+			__m256i idx;
+			__m128i idx_lo, idx_hi;
 
-			__m256i idx, idx_r, idx_g, idx_b, idx_base;
+			uint32_t idx_scalar_lo, idx_scalar_hi;
 
+			// Input domain remapping.
 			r = _mm256_fmadd_ps(r, scale_r, offset_r);
 			g = _mm256_fmadd_ps(g, scale_g, offset_g);
 			b = _mm256_fmadd_ps(b, scale_b, offset_b);
@@ -203,76 +220,45 @@ public:
 			b = _mm256_min_ps(b, lut_max);
 
 			// Base offset.
-			idx_r = _mm256_cvttps_epi32(r);
-
-			idx_g = _mm256_cvttps_epi32(g);
-			idx_g = _mm256_mullo_epi32(idx_g, lut_dim);
-
-			idx_b = _mm256_cvttps_epi32(b);
-			idx_b = _mm256_mullo_epi32(idx_b, lut_dim_sq);
-
-			idx_base = _mm256_add_epi32(idx_r, idx_g);
-			idx_base = _mm256_add_epi32(idx_base, idx_b);
+			idx = lut3d_calculate_index(r, g, b, lut_stride_g_epi32, lut_stride_b_epi32);
+			idx_lo = _mm256_castsi256_si128(idx);
+			idx_hi = _mm256_extracti128_si256(idx, 1);
 
 			// Cube distances.
 			r = _mm256_sub_ps(r, _mm256_floor_ps(r));
 			g = _mm256_sub_ps(g, _mm256_floor_ps(g));
 			b = _mm256_sub_ps(b, _mm256_floor_ps(b));
 
-			// R0-G0-B0 R1-G0-B0
-			idx = _mm256_slli_epi32(idx_base, 4); // 16 byte entry.
+			// Interpolation.
+			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(0, 0, 0, 0));
+			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(0, 0, 0, 0));
+			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(0, 0, 0, 0));
+			idx_scalar_lo = _mm_extract_epi32(idx_lo, 0);
+			idx_scalar_hi = _mm_extract_epi32(idx_hi, 0);
+			result04 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
 
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp0_r = mm256_interp_ps(lut_r0, lut_r1, r);
-			tmp0_g = mm256_interp_ps(lut_g0, lut_g1, r);
-			tmp0_b = mm256_interp_ps(lut_b0, lut_b1, r);
+			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(1, 1, 1, 1));
+			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(1, 1, 1, 1));
+			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(1, 1, 1, 1));
+			idx_scalar_lo = _mm_extract_epi32(idx_lo, 1);
+			idx_scalar_hi = _mm_extract_epi32(idx_hi, 1);
+			result15 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
 
-			// R0-G1-B0 R1-G1-B0
-			idx = _mm256_add_epi32(idx_base, lut_dim);
-			idx = _mm256_slli_epi32(idx, 4);
+			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(2, 2, 2, 2));
+			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(2, 2, 2, 2));
+			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(2, 2, 2, 2));
+			idx_scalar_lo = _mm_extract_epi32(idx_lo, 2);
+			idx_scalar_hi = _mm_extract_epi32(idx_hi, 2);
+			result26 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
 
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp1_r = mm256_interp_ps(lut_r0, lut_r1, r);
-			tmp1_g = mm256_interp_ps(lut_g0, lut_g1, r);
-			tmp1_b = mm256_interp_ps(lut_b0, lut_b1, r);
+			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(3, 3, 3, 3));
+			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(3, 3, 3, 3));
+			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(3, 3, 3, 3));
+			idx_scalar_lo = _mm_extract_epi32(idx_lo, 3);
+			idx_scalar_hi = _mm_extract_epi32(idx_hi, 3);
+			result37 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
 
-			// R0-G0-B1 R1-G0-B1
-			idx = _mm256_add_epi32(idx_base, lut_dim_sq);
-			idx = _mm256_slli_epi32(idx, 4);
-
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp2_r = mm256_interp_ps(lut_r0, lut_r1, r);
-			tmp2_g = mm256_interp_ps(lut_g0, lut_g1, r);
-			tmp2_b = mm256_interp_ps(lut_b0, lut_b1, r);
-
-			// R0-G1-B1 R1-G1-B1
-			idx = _mm256_add_epi32(idx_base, lut_dim);
-			idx = _mm256_add_epi32(idx, lut_dim_sq);
-			idx = _mm256_slli_epi32(idx, 4);
-
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp3_r = mm256_interp_ps(lut_r0, lut_r1, r);
-			tmp3_g = mm256_interp_ps(lut_g0, lut_g1, r);
-			tmp3_b = mm256_interp_ps(lut_b0, lut_b1, r);
-
-			// Rx-G0-B0 Rx-G1-B0
-			tmp0_r = mm256_interp_ps(tmp0_r, tmp1_r, g);
-			tmp0_g = mm256_interp_ps(tmp0_g, tmp1_g, g);
-			tmp0_b = mm256_interp_ps(tmp0_b, tmp1_b, g);
-
-			// Rx-G0-B1 Rx-G1-B1
-			tmp2_r = mm256_interp_ps(tmp2_r, tmp3_r, g);
-			tmp2_g = mm256_interp_ps(tmp2_g, tmp3_g, g);
-			tmp2_b = mm256_interp_ps(tmp2_b, tmp3_b, g);
-
-			// Rx-Gx-B0 Rx-Gx-B1
-			tmp0_r = mm256_interp_ps(tmp0_r, tmp2_r, b);
-			tmp0_g = mm256_interp_ps(tmp0_g, tmp2_g, b);
-			tmp0_b = mm256_interp_ps(tmp0_b, tmp2_b, b);
-
-			r = tmp0_r;
-			g = tmp0_g;
-			b = tmp0_b;
+			lut3d_unpack_result(result04, result15, result26, result37, r, g, b);
 
 			if (i + 8 > width) {
 				__m256i mask = _mm256_set_epi32(7, 6, 5, 4, 3, 2, 1, 0);

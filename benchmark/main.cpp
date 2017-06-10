@@ -9,7 +9,7 @@
 
 int main(int argc, char **argv)
 {
-	unsigned niter = 2000000;
+	unsigned niter = 4000000;
 	bool simd = true;
 
 	try {

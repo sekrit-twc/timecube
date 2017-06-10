@@ -22,9 +22,9 @@ int main(int argc, char **argv)
 	}
 
 	std::unique_ptr<timecube::Lut> lut;
-	float x = 0.0f;
-	float y = 0.0f;
-	float z = 0.0f;
+	alignas(32) float x = 0.0f;
+	alignas(32) float y = 0.0f;
+	alignas(32) float z = 0.0f;
 	bool simd = false;
 
 	try {

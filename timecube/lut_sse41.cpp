@@ -46,34 +46,6 @@ struct AlignedAllocator {
 };
 
 
-// Loads packed vertices for R0-Gx-Bx and R1-Gx-Bx.
-static inline FORCE_INLINE void lut3d_load_vertex(const void *lut, const __m128i offset, __m128 &r0, __m128 &g0, __m128 &b0, __m128 &r1, __m128 &g1, __m128 &b1)
-{
-	__m128 row0, row1, row2, row3;
-
-#define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
-	row0 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 0)));
-	row1 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 1)));
-	row2 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 2)));
-	row3 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 3)));
-
-	_MM_TRANSPOSE4_PS(row0, row1, row2, row3);
-	r0 = row0;
-	g0 = row1;
-	b0 = row2;
-
-	row0 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 0)) + 4);
-	row1 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 1)) + 4);
-	row2 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 2)) + 4);
-	row3 = _mm_load_ps(LUT_OFFSET(_mm_extract_epi32(offset, 3)) + 4);
-
-	_MM_TRANSPOSE4_PS(row0, row1, row2, row3);
-	r1 = row0;
-	g1 = row1;
-	b1 = row2;
-#undef LUT_OFFSET
-}
-
 static inline FORCE_INLINE __m128 mm_interp_ps(__m128 lo, __m128 hi, __m128 dist)
 {
 	__m128 x;
@@ -85,6 +57,52 @@ static inline FORCE_INLINE __m128 mm_interp_ps(__m128 lo, __m128 hi, __m128 dist
 	x = _mm_add_ps(_mm_mul_ps(dist, hi), x);
 
 	return x;
+}
+
+static inline FORCE_INLINE __m128i lut3d_calculate_index(const __m128 &r, const __m128 &g, const __m128 &b, const __m128i &stride_g, const __m128i &stride_b)
+{
+	__m128i idx_r, idx_g, idx_b;
+
+	idx_r = _mm_cvttps_epi32(r);
+	idx_r = _mm_slli_epi32(idx_r, 4); // 16 byte entries.
+
+	idx_g = _mm_cvttps_epi32(g);
+	idx_g = _mm_mullo_epi32(idx_g, stride_g);
+
+	idx_b = _mm_cvttps_epi32(b);
+	idx_b = _mm_mullo_epi32(idx_b, stride_b);
+
+	return _mm_add_epi32(_mm_add_epi32(idx_r, idx_g), idx_b);
+}
+
+// Performs trilinear interpolation on one pixels.
+// Returns [R G B x].
+static inline FORCE_INLINE __m128 lut3d_trilinear_interp(const void *lut, ptrdiff_t stride_g, ptrdiff_t stride_b, ptrdiff_t idx,
+                                                         const __m128 &r, const __m128 &g, const __m128 &b)
+{
+#define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
+	__m128 r0g0b0, r1g0b0, r0g1b0, r1g1b0, r0g0b1, r1g0b1, r0g1b1, r1g1b1;
+
+	r0g0b0 = _mm_load_ps(LUT_OFFSET(idx));
+	r1g0b0 = _mm_load_ps(LUT_OFFSET(idx + 16));
+	r0g1b0 = _mm_load_ps(LUT_OFFSET(idx + stride_g));
+	r1g1b0 = _mm_load_ps(LUT_OFFSET(idx + stride_g + 16));
+	r0g0b1 = _mm_load_ps(LUT_OFFSET(idx + stride_b));
+	r1g0b1 = _mm_load_ps(LUT_OFFSET(idx + stride_b + 16));
+	r0g1b1 = _mm_load_ps(LUT_OFFSET(idx + stride_g + stride_b));
+	r1g1b1 = _mm_load_ps(LUT_OFFSET(idx + stride_g + stride_b + 16));
+
+	r0g0b0 = mm_interp_ps(r0g0b0, r1g0b0, r);
+	r0g1b0 = mm_interp_ps(r0g1b0, r1g1b0, r);
+	r0g0b1 = mm_interp_ps(r0g0b1, r1g0b1, r);
+	r0g1b1 = mm_interp_ps(r0g1b1, r1g1b1, r);
+
+	r0g0b0 = mm_interp_ps(r0g0b0, r0g1b0, g);
+	r0g0b1 = mm_interp_ps(r0g0b1, r0g1b1, g);
+
+	r0g0b0 = mm_interp_ps(r0g0b0, r0g0b1, b);
+	return r0g0b0;
+#undef LUT_OFFSET
 }
 
 class Lut3D_SSE41 final : public Lut {
@@ -116,6 +134,8 @@ public:
 	void process(const void * const src[3], void * const dst[3], unsigned width) override
 	{
 		const float *lut = m_lut.data();
+		uint32_t lut_stride_g = m_dim * sizeof(float) * 4;
+		uint32_t lut_stride_b = m_dim * m_dim * sizeof(float) * 4;
 
 		const float *src_r = static_cast<const float *>(src[0]);
 		const float *src_g = static_cast<const float *>(src[1]);
@@ -132,21 +152,21 @@ public:
 		const __m128 offset_b = _mm_set_ps1(m_offset[2]);
 
 		const __m128 lut_max = _mm_set_ps1(std::nextafter(static_cast<float>(m_dim - 1), -INFINITY));
-		const __m128i lut_dim = _mm_set1_epi32(m_dim);
-		const __m128i lut_dim_sq = _mm_set1_epi32(m_dim * m_dim);
+		const __m128i lut_stride_g_epi32 = _mm_set1_epi32(lut_stride_g);
+		const __m128i lut_stride_b_epi32 = _mm_set1_epi32(lut_stride_b);
 
 		for (unsigned i = 0; i < width; i += 4) {
 			__m128 r = _mm_load_ps(src_r + i);
 			__m128 g = _mm_load_ps(src_g + i);
 			__m128 b = _mm_load_ps(src_b + i);
 
-			__m128 lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1;
-			__m128 tmp0_r, tmp1_r, tmp2_r, tmp3_r;
-			__m128 tmp0_g, tmp1_g, tmp2_g, tmp3_g;
-			__m128 tmp0_b, tmp1_b, tmp2_b, tmp3_b;
+			__m128 result0, result1, result2, result3;
+			__m128 rtmp, gtmp, btmp;
+			__m128i idx;
 
-			__m128i idx, idx_r, idx_g, idx_b, idx_base;
+			uint32_t idx_scalar;
 
+			// Input domain remapping.
 			r = _mm_add_ps(_mm_mul_ps(scale_r, r), offset_r);
 			g = _mm_add_ps(_mm_mul_ps(scale_g, g), offset_g);
 			b = _mm_add_ps(_mm_mul_ps(scale_b, b), offset_b);
@@ -160,77 +180,42 @@ public:
 			b = _mm_max_ps(b, _mm_setzero_ps());
 			b = _mm_min_ps(b, lut_max);
 
-			// Base offset.
-			idx_r = _mm_cvttps_epi32(r);
-
-			idx_g = _mm_cvttps_epi32(g);
-			idx_g = _mm_mullo_epi32(idx_g, lut_dim);
-
-			idx_b = _mm_cvttps_epi32(b);
-			idx_b = _mm_mullo_epi32(idx_b, lut_dim_sq);
-
-			idx_base = _mm_add_epi32(idx_r, idx_g);
-			idx_base = _mm_add_epi32(idx_base, idx_b);
+			idx = lut3d_calculate_index(r, g, b, lut_stride_g_epi32, lut_stride_b_epi32);
 
 			// Cube distances.
 			r = _mm_sub_ps(r, _mm_floor_ps(r));
 			g = _mm_sub_ps(g, _mm_floor_ps(g));
 			b = _mm_sub_ps(b, _mm_floor_ps(b));
 
-			// R0-G0-B0 R1-G0-B0
-			idx = _mm_slli_epi32(idx_base, 4); // 16 byte entry.
+			// Interpolation.
+			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(0, 0, 0, 0));
+			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(0, 0, 0, 0));
+			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(0, 0, 0, 0));
+			idx_scalar = _mm_extract_epi32(idx, 0);
+			result0 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
 
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp0_r = mm_interp_ps(lut_r0, lut_r1, r);
-			tmp0_g = mm_interp_ps(lut_g0, lut_g1, r);
-			tmp0_b = mm_interp_ps(lut_b0, lut_b1, r);
+			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(1, 1, 1, 1));
+			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(1, 1, 1, 1));
+			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(1, 1, 1, 1));
+			idx_scalar = _mm_extract_epi32(idx, 1);
+			result1 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
 
-			// R0-G1-B0 R1-G1-B0
-			idx = _mm_add_epi32(idx_base, lut_dim);
-			idx = _mm_slli_epi32(idx, 4);
+			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(2, 2, 2, 2));
+			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(2, 2, 2, 2));
+			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(2, 2, 2, 2));
+			idx_scalar = _mm_extract_epi32(idx, 2);
+			result2 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
 
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp1_r = mm_interp_ps(lut_r0, lut_r1, r);
-			tmp1_g = mm_interp_ps(lut_g0, lut_g1, r);
-			tmp1_b = mm_interp_ps(lut_b0, lut_b1, r);
+			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(3, 3, 3, 3));
+			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(3, 3, 3, 3));
+			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(3, 3, 3, 3));
+			idx_scalar = _mm_extract_epi32(idx, 3);
+			result3 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
 
-			// R0-G0-B1 R1-G0-B1
-			idx = _mm_add_epi32(idx_base, lut_dim_sq);
-			idx = _mm_slli_epi32(idx, 4);
-
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp2_r = mm_interp_ps(lut_r0, lut_r1, r);
-			tmp2_g = mm_interp_ps(lut_g0, lut_g1, r);
-			tmp2_b = mm_interp_ps(lut_b0, lut_b1, r);
-
-			// R0-G1-B1 R1-G1-B1
-			idx = _mm_add_epi32(idx_base, lut_dim);
-			idx = _mm_add_epi32(idx, lut_dim_sq);
-			idx = _mm_slli_epi32(idx, 4);
-
-			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
-			tmp3_r = mm_interp_ps(lut_r0, lut_r1, r);
-			tmp3_g = mm_interp_ps(lut_g0, lut_g1, r);
-			tmp3_b = mm_interp_ps(lut_b0, lut_b1, r);
-
-			// Rx-G0-B0 Rx-G1-B0
-			tmp0_r = mm_interp_ps(tmp0_r, tmp1_r, g);
-			tmp0_g = mm_interp_ps(tmp0_g, tmp1_g, g);
-			tmp0_b = mm_interp_ps(tmp0_b, tmp1_b, g);
-
-			// Rx-G0-B1 Rx-G1-B1
-			tmp2_r = mm_interp_ps(tmp2_r, tmp3_r, g);
-			tmp2_g = mm_interp_ps(tmp2_g, tmp3_g, g);
-			tmp2_b = mm_interp_ps(tmp2_b, tmp3_b, g);
-
-			// Rx-Gx-B0 Rx-Gx-B1
-			tmp0_r = mm_interp_ps(tmp0_r, tmp2_r, b);
-			tmp0_g = mm_interp_ps(tmp0_g, tmp2_g, b);
-			tmp0_b = mm_interp_ps(tmp0_b, tmp2_b, b);
-
-			r = tmp0_r;
-			g = tmp0_g;
-			b = tmp0_b;
+			_MM_TRANSPOSE4_PS(result0, result1, result2, result3);
+			r = result0;
+			g = result1;
+			b = result2;
 
 			if (i + 4 > width) {
 				alignas(16) float rbuf[4];
