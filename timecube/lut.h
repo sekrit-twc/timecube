@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef timecube_LUT_H_
-#define timecube_LUT_H_
+#ifndef TIMECUBE_LUT_H_
+#define TIMECUBE_LUT_H_
 
 #include <memory>
 
@@ -18,4 +18,4 @@ std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd);
 
 } // namespace timecube
 
-#endif // timecube_LUT_H_
+#endif // TIMECUBE_LUT_H_

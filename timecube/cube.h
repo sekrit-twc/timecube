@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef timecube_CUBE_H_
-#define timecube_CUBE_H_
+#ifndef TIMECUBE_CUBE_H_
+#define TIMECUBE_CUBE_H_
 
 #include <cstdint>
 #include <string>
@@ -24,4 +24,4 @@ Cube read_cube_from_file(const char *path);
 
 } // namespace timecube
 
-#endif /* timecube_CUBE_H_ */
+#endif /* TIMECUBE_CUBE_H_ */

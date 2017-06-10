@@ -6,6 +6,7 @@
 #include <vector>
 #include "cube.h"
 #include "lut.h"
+#include "lut_x86.h"
 
 namespace timecube {
 namespace {
@@ -140,7 +141,7 @@ public:
 		float *dst_b = static_cast<float *>(dst[2]);
 
 		uint_least32_t lut_max = m_dim - 1;
-		float lut_clamp = std::nextafterf(static_cast<float>(lut_max), -INFINITY);
+		float lut_clamp = std::nextafter(static_cast<float>(lut_max), -INFINITY);
 
 		for (unsigned i = 0; i < width; ++i) {
 			float r, g, b;
@@ -194,18 +195,20 @@ public:
 } // namespace
 
 
-std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool)
+std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd)
 {
 	std::unique_ptr<Lut> ret;
 
-	if (cube.is_3d) {
-		if (!ret) {
-			ret.reset(new Lut3D(cube));
-		}
-	} else {
-		if (!ret) {
-			ret.reset(new Lut1D(cube));
-		}
+#ifdef CUBE_X86
+	if (enable_simd)
+		ret = create_lut_impl_x86(cube);
+#endif
+
+	if (!ret) {
+		if (cube.is_3d)
+			ret = std::unique_ptr<Lut>(new Lut3D{ cube });
+		else
+			ret = std::unique_ptr<Lut>(new Lut1D{ cube });
 	}
 
 	return ret;

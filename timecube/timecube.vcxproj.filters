@@ -21,12 +21,24 @@
     <ClInclude Include="lut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="lut_x86.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lut.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lut_x86.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lut_avx2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lut_sse41.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
