@@ -94,14 +94,17 @@ static inline FORCE_INLINE void lut3d_transpose_coeffs(__m256 &row0, __m256 &row
 static inline FORCE_INLINE void lut3d_load_vertex(const void *lut, const __m256i offset, __m256 &r0, __m256 &g0, __m256 &b0, __m256 &r1, __m256 &g1, __m256 &b1)
 {
 #define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
-	__m256 row0 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 0)));
-	__m256 row1 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 1)));
-	__m256 row2 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 2)));
-	__m256 row3 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 3)));
-	__m256 row4 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 4)));
-	__m256 row5 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 5)));
-	__m256 row6 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 6)));
-	__m256 row7 = _mm256_loadu_ps(LUT_OFFSET(_mm256_extract_epi32(offset, 7)));
+	__m128i offset_lo = _mm256_castsi256_si128(offset);
+	__m128i offset_hi = _mm256_extracti128_si256(offset, 1);
+
+	__m256 row0 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 0)));
+	__m256 row1 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 1)));
+	__m256 row2 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 2)));
+	__m256 row3 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_lo, 3)));
+	__m256 row4 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 0)));
+	__m256 row5 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 1)));
+	__m256 row6 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 2)));
+	__m256 row7 = _mm256_loadu_ps(LUT_OFFSET(_mm_extract_epi32(offset_hi, 3)));
 
 	lut3d_transpose_coeffs(row0, row1, row2, row3, row4, row5, row6, row7);
 
@@ -172,6 +175,7 @@ public:
 
 		const __m256 lut_max = _mm256_set1_ps(std::nextafter(static_cast<float>(m_dim - 1), -INFINITY));
 		const __m256i lut_dim = _mm256_set1_epi32(m_dim);
+		const __m256i lut_dim_sq = _mm256_set1_epi32(m_dim * m_dim);
 
 		for (unsigned i = 0; i < width; i += 8) {
 			__m256 r = _mm256_load_ps(src_r + i);
@@ -205,8 +209,7 @@ public:
 			idx_g = _mm256_mullo_epi32(idx_g, lut_dim);
 
 			idx_b = _mm256_cvttps_epi32(b);
-			idx_b = _mm256_mullo_epi32(idx_b, lut_dim);
-			idx_b = _mm256_mullo_epi32(idx_b, lut_dim);
+			idx_b = _mm256_mullo_epi32(idx_b, lut_dim_sq);
 
 			idx_base = _mm256_add_epi32(idx_r, idx_g);
 			idx_base = _mm256_add_epi32(idx_base, idx_b);
@@ -234,7 +237,7 @@ public:
 			tmp1_b = mm256_interp_ps(lut_b0, lut_b1, r);
 
 			// R0-G0-B1 R1-G0-B1
-			idx = _mm256_add_epi32(idx_base, _mm256_mullo_epi32(lut_dim, lut_dim));
+			idx = _mm256_add_epi32(idx_base, lut_dim_sq);
 			idx = _mm256_slli_epi32(idx, 4);
 
 			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
@@ -244,7 +247,7 @@ public:
 
 			// R0-G1-B1 R1-G1-B1
 			idx = _mm256_add_epi32(idx_base, lut_dim);
-			idx = _mm256_add_epi32(idx, _mm256_mullo_epi32(lut_dim, lut_dim));
+			idx = _mm256_add_epi32(idx, lut_dim_sq);
 			idx = _mm256_slli_epi32(idx, 4);
 
 			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);

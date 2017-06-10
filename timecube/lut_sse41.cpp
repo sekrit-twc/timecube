@@ -133,6 +133,7 @@ public:
 
 		const __m128 lut_max = _mm_set_ps1(std::nextafter(static_cast<float>(m_dim - 1), -INFINITY));
 		const __m128i lut_dim = _mm_set1_epi32(m_dim);
+		const __m128i lut_dim_sq = _mm_set1_epi32(m_dim * m_dim);
 
 		for (unsigned i = 0; i < width; i += 4) {
 			__m128 r = _mm_load_ps(src_r + i);
@@ -166,8 +167,7 @@ public:
 			idx_g = _mm_mullo_epi32(idx_g, lut_dim);
 
 			idx_b = _mm_cvttps_epi32(b);
-			idx_b = _mm_mullo_epi32(idx_b, lut_dim);
-			idx_b = _mm_mullo_epi32(idx_b, lut_dim);
+			idx_b = _mm_mullo_epi32(idx_b, lut_dim_sq);
 
 			idx_base = _mm_add_epi32(idx_r, idx_g);
 			idx_base = _mm_add_epi32(idx_base, idx_b);
@@ -195,7 +195,7 @@ public:
 			tmp1_b = mm_interp_ps(lut_b0, lut_b1, r);
 
 			// R0-G0-B1 R1-G0-B1
-			idx = _mm_add_epi32(idx_base, _mm_mullo_epi32(lut_dim, lut_dim));
+			idx = _mm_add_epi32(idx_base, lut_dim_sq);
 			idx = _mm_slli_epi32(idx, 4);
 
 			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
@@ -205,7 +205,7 @@ public:
 
 			// R0-G1-B1 R1-G1-B1
 			idx = _mm_add_epi32(idx_base, lut_dim);
-			idx = _mm_add_epi32(idx, _mm_mullo_epi32(lut_dim, lut_dim));
+			idx = _mm_add_epi32(idx, lut_dim_sq);
 			idx = _mm_slli_epi32(idx, 4);
 
 			lut3d_load_vertex(lut, idx, lut_r0, lut_g0, lut_b0, lut_r1, lut_g1, lut_b1);
