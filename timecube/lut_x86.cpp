@@ -1,5 +1,7 @@
 #ifdef CUBE_X86
 
+#include <climits>
+
 #if defined(_MSC_VER)
   #include <intrin.h>
 #elif defined(__GNUC__)
@@ -13,6 +15,13 @@
 
 namespace timecube {
 namespace {
+
+enum {
+	SIMD_NONE  = 0,
+	SIMD_SSE42 = 1,
+	SIMD_AVX2  = 2,
+	SIMD_MAX   = INT_MAX,
+};
 
 /**
  * Bitfield of selected x86 feature flags.
@@ -106,14 +115,14 @@ X86Capabilities query_x86_capabilities() noexcept
 } // namespace
 
 
-std::unique_ptr<Lut> create_lut_impl_x86(const Cube &cube)
+std::unique_ptr<Lut> create_lut_impl_x86(const Cube &cube, int simd)
 {
 	X86Capabilities caps = query_x86_capabilities();
 	std::unique_ptr<Lut> ret;
 
-	if (!ret && caps.avx2 && caps.fma)
+	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
 		ret = create_lut_impl_avx2(cube);
-	if (!ret && caps.sse41)
+	if (!ret && simd >= SIMD_SSE42 && caps.sse41)
 		ret = create_lut_impl_sse41(cube);
 
 	return ret;

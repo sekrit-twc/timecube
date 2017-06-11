@@ -309,13 +309,12 @@ bool Lut::supports_half() const
 	return false;
 }
 
-std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd)
+std::unique_ptr<Lut> create_lut_impl(const Cube &cube, int simd)
 {
 	std::unique_ptr<Lut> ret;
 
 #ifdef CUBE_X86
-	if (enable_simd)
-		ret = create_lut_impl_x86(cube);
+	ret = create_lut_impl_x86(cube, simd);
 #endif
 
 	if (!ret) {

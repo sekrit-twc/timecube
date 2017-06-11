@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include "cube.h"
@@ -136,7 +137,7 @@ public:
 			throw std::runtime_error{ "more than 16-bit not supported" };
 
 		const char *path = in.get_prop<const char *>("cube");
-		bool cpu = in.get_prop<bool>("cpu", map::default_val(true));
+		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val<int64_t>(INT_MAX)));
 
 		timecube::Cube cube = timecube::read_cube_from_file(path);
 		m_lut = timecube::create_lut_impl(cube, cpu);

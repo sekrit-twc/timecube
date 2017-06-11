@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 	alignas(32) float x = 0.0f;
 	alignas(32) float y = 0.0f;
 	alignas(32) float z = 0.0f;
-	bool simd = false;
+	int simd = 0;
 
 	try {
 		if (argc >= 5) {
@@ -35,7 +35,7 @@ int main(int argc, char **argv)
 		}
 
 		if (argc >= 6)
-			simd = !!std::stof(argv[5]);
+			simd = std::stoi(argv[5]);
 	} catch (const std::exception &) {
 		usage();
 		return 1;

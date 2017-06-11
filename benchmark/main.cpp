@@ -1,4 +1,5 @@
 #include <chrono>
+#include <climits>
 #include <cstdio>
 #include <exception>
 #include <iostream>
@@ -10,13 +11,13 @@
 int main(int argc, char **argv)
 {
 	unsigned niter = 4000000;
-	bool simd = true;
+	int simd = INT_MAX;
 
 	try {
 		if (argc >= 2)
 			niter = std::stoi(argv[1]);
 		if (argc >= 3)
-			simd = !!std::stoi(argv[2]);
+			simd = std::stoi(argv[2]);
 	} catch (const std::exception &) {
 		std::cerr << "usage: benchmark [niter] [simd]\n";
 		return 1;

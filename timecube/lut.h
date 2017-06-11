@@ -33,7 +33,7 @@ public:
 	virtual void process(const float * const src[3], float * const dst[3], unsigned width) const = 0;
 };
 
-std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd);
+std::unique_ptr<Lut> create_lut_impl(const Cube &cube, int simd);
 
 } // namespace timecube
 
