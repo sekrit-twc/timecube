@@ -1,7 +1,9 @@
 #ifdef CUBE_X86
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <immintrin.h>
 #include "cube.h"
@@ -44,6 +46,182 @@ struct AlignedAllocator {
 	bool operator==(const AlignedAllocator &) const noexcept { return true; }
 	bool operator!=(const AlignedAllocator &) const noexcept { return false; }
 };
+
+
+void byte_to_float(const uint8_t *src, float *dst, float scale, float offset, unsigned width)
+{
+	__m256 scale_ps = _mm256_set1_ps(scale);
+	__m256 offset_ps = _mm256_set1_ps(offset);
+
+	for (unsigned i = 0; i < (width - width % 32); i += 32) {
+		__m256i lolo, lohi, hilo, hihi;
+		__m256i lo, hi;
+		__m256i x;
+		__m256 y;
+
+		x = _mm256_load_si256((const __m256i *)(src + i));
+		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
+
+		lo = _mm256_unpacklo_epi8(x, _mm256_setzero_si256());
+		lo = _mm256_permute4x64_epi64(lo, _MM_SHUFFLE(3, 1, 2, 0));
+
+		hi = _mm256_unpackhi_epi8(x, _mm256_setzero_si256());
+		hi = _mm256_permute4x64_epi64(hi, _MM_SHUFFLE(3, 1, 2, 0));
+
+		lolo = _mm256_unpacklo_epi16(lo, _mm256_setzero_si256());
+		lohi = _mm256_unpackhi_epi16(lo, _mm256_setzero_si256());
+		hilo = _mm256_unpacklo_epi16(hi, _mm256_setzero_si256());
+		hihi = _mm256_unpackhi_epi16(hi, _mm256_setzero_si256());
+
+		y = _mm256_cvtepi32_ps(lolo);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 0, y);
+
+		y = _mm256_cvtepi32_ps(lohi);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 8, y);
+
+		y = _mm256_cvtepi32_ps(hilo);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 16, y);
+
+		y = _mm256_cvtepi32_ps(hihi);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 24, y);
+	}
+	for (unsigned i = width - width % 32; i < width; ++i) {
+		dst[i] = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
+	}
+}
+
+void word_to_float(const uint16_t *src, float *dst, float scale, float offset, unsigned width)
+{
+	__m256 scale_ps = _mm256_set1_ps(scale);
+	__m256 offset_ps = _mm256_set1_ps(offset);
+
+	for (unsigned i = 0; i < (width - width % 16); i += 16) {
+		__m256i lo, hi;
+		__m256i x;
+		__m256 y;
+
+		x = _mm256_load_si256((const __m256i *)(src + i));
+		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
+
+		lo = _mm256_unpacklo_epi16(x, _mm256_setzero_si256());
+		hi = _mm256_unpackhi_epi16(x, _mm256_setzero_si256());
+
+		y = _mm256_cvtepi32_ps(lo);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 0, y);
+
+		y = _mm256_cvtepi32_ps(hi);
+		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
+		_mm256_store_ps(dst + i + 8, y);
+	}
+	for (unsigned i = width - width % 16; i < width; ++i) {
+		dst[i] = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
+	}
+}
+
+void half_to_float(const uint16_t *src, float *dst, unsigned width)
+{
+	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+		__m128i x = _mm_load_si128((const __m128i *)(src + i));
+		__m256 y = _mm256_cvtph_ps(x);
+		_mm256_store_ps(dst + i, y);
+	}
+	for (unsigned i = width - width % 8; i < width; ++i) {
+		dst[i] = _mm_cvtss_f32(_mm_cvtph_ps(_mm_set1_epi16(src[i])));
+	}
+}
+
+void float_to_byte(const float *src, uint8_t *dst, float scale, float offset, unsigned width)
+{
+	__m256 scale_ps = _mm256_set1_ps(scale);
+	__m256 offset_ps = _mm256_set1_ps(offset);
+
+	for (unsigned i = 0; i < (width - width % 32); i += 32) {
+		__m256i lolo, lohi, hilo, hihi;
+		__m256i lo, hi;
+		__m256 x;
+		__m256i y;
+
+		x = _mm256_load_ps(src + i + 0);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		lolo = _mm256_cvtps_epi32(x);
+
+		x = _mm256_load_ps(src + i + 8);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		lohi = _mm256_cvtps_epi32(x);
+
+		x = _mm256_load_ps(src + i + 16);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		hilo = _mm256_cvtps_epi32(x);
+
+		x = _mm256_load_ps(src + i + 24);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		hihi = _mm256_cvtps_epi32(x);
+
+		lo = _mm256_packus_epi32(lolo, lohi);
+		lo = _mm256_permute4x64_epi64(lo, _MM_SHUFFLE(3, 1, 2, 0));
+
+		hi = _mm256_packus_epi32(hilo, hihi);
+		hi = _mm256_permute4x64_epi64(hi, _MM_SHUFFLE(3, 1, 2, 0));
+
+		y = _mm256_packus_epi16(lo, hi);
+		y = _mm256_permute4x64_epi64(y, _MM_SHUFFLE(3, 1, 2, 0));
+		_mm256_store_si256((__m256i *)(dst + i), y);
+	}
+	for (unsigned i = width - width % 32; i < width; ++i) {
+		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
+		int y = _mm_cvt_ss2si(_mm_set_ss(x));
+		y = std::min(std::max(y, 0), static_cast<int>(UINT8_MAX));
+		dst[i] = static_cast<uint8_t>(y);
+	}
+}
+
+void float_to_word(const float *src, uint16_t *dst, float scale, float offset, unsigned width)
+{
+	__m256 scale_ps = _mm256_set1_ps(scale);
+	__m256 offset_ps = _mm256_set1_ps(offset);
+
+	for (unsigned i = 0; i < (width - width % 16); i += 16) {
+		__m256i lo, hi;
+		__m256 x;
+		__m256i y;
+
+		x = _mm256_load_ps(src + i + 0);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		lo = _mm256_cvtps_epi32(x);
+
+		x = _mm256_load_ps(src + i + 8);
+		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
+		hi = _mm256_cvtps_epi32(x);
+
+		y = _mm256_packus_epi32(lo, hi);
+		y = _mm256_permute4x64_epi64(y, _MM_SHUFFLE(3, 1, 2, 0));
+		_mm256_store_si256((__m256i *)(dst + i), y);
+	}
+	for (unsigned i = width - width % 16; i < width; ++i) {
+		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
+		int y = _mm_cvt_ss2si(_mm_set_ss(x));
+		y = std::min(std::max(y, 0), static_cast<int>(UINT16_MAX));
+		dst[i] = static_cast<uint16_t>(y);
+	}
+}
+
+void float_to_half(const float *src, uint16_t *dst, unsigned width)
+{
+	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+		__m256 x = _mm256_load_ps(src + i);
+		__m128i y = _mm256_cvtps_ph(x, 0);
+		_mm_store_si128((__m128i *)(dst + i), y);
+	}
+	for (unsigned i = width - width % 8; i < width; ++i) {
+		int x = _mm_extract_epi16(_mm_cvtps_ph(_mm_set_ss(src[i]), 0), 0);
+		dst[i] = static_cast<uint16_t>(x);
+	}
+}
 
 
 static inline FORCE_INLINE __m256 mm256_interp_ps(__m256 lo, __m256 hi, __m256 dist)
@@ -164,18 +342,84 @@ public:
 		}
 	}
 
-	void process(const void * const src[3], void * const dst[3], unsigned width) override
+	void to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const override
+	{
+		if (format.type == PixelType::BYTE || format.type == PixelType::WORD) {
+			float scale;
+			float offset;
+
+			if (format.fullrange) {
+				scale = 1.0f / ((1UL << format.depth) - 1);
+				offset = 0;
+			} else {
+				scale = 1.0f / (219UL << (format.depth - 8));
+				offset = -static_cast<float>(16UL << (format.depth - 8)) * scale;
+			}
+
+			if (format.type == PixelType::BYTE) {
+				byte_to_float(static_cast<const uint8_t *>(src[0]), dst[0], scale, offset, width);
+				byte_to_float(static_cast<const uint8_t *>(src[1]), dst[1], scale, offset, width);
+				byte_to_float(static_cast<const uint8_t *>(src[2]), dst[2], scale, offset, width);
+			} else {
+				word_to_float(static_cast<const uint16_t *>(src[0]), dst[0], scale, offset, width);
+				word_to_float(static_cast<const uint16_t *>(src[1]), dst[1], scale, offset, width);
+				word_to_float(static_cast<const uint16_t *>(src[2]), dst[2], scale, offset, width);
+			}
+		} else if (format.type == PixelType::HALF) {
+			half_to_float(static_cast<const uint16_t *>(src[0]), dst[0], width);
+			half_to_float(static_cast<const uint16_t *>(src[1]), dst[1], width);
+			half_to_float(static_cast<const uint16_t *>(src[2]), dst[2], width);
+		} else {
+			Lut::to_float(src, dst, format, width);
+		}
+	}
+
+	void from_float(const float * const src[3], void * const dst[3], const PixelFormat &format, unsigned width) const override
+	{
+		if (format.type == PixelType::BYTE || format.type == PixelType::WORD) {
+			float scale;
+			float offset;
+
+			if (format.fullrange) {
+				scale = static_cast<float>((1UL << format.depth) - 1);
+				offset = 0;
+			} else {
+				scale = static_cast<float>(1.0f / (219UL << (format.depth - 8)));
+				offset = static_cast<float>(16UL << (format.depth - 8));
+			}
+
+			if (format.type == PixelType::BYTE) {
+				float_to_byte(src[0], static_cast<uint8_t *>(dst[0]), scale, offset, width);
+				float_to_byte(src[1], static_cast<uint8_t *>(dst[1]), scale, offset, width);
+				float_to_byte(src[2], static_cast<uint8_t *>(dst[2]), scale, offset, width);
+			} else {
+				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), scale, offset, width);
+				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), scale, offset, width);
+				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), scale, offset, width);
+			}
+		} else if (format.type == PixelType::HALF) {
+			float_to_half(src[0], static_cast<uint16_t *>(dst[0]), width);
+			float_to_half(src[1], static_cast<uint16_t *>(dst[1]), width);
+			float_to_half(src[2], static_cast<uint16_t *>(dst[2]), width);
+		} else {
+			Lut::from_float(src, dst, format, width);
+		}
+	}
+
+	bool supports_half() const override { return true; }
+
+	void process(const float * const src[3], float * const dst[3], unsigned width) const override
 	{
 		const float *lut = m_lut.data();
 		uint32_t lut_stride_g = m_dim * sizeof(float) * 4;
 		uint32_t lut_stride_b = m_dim * m_dim * sizeof(float) * 4;
 
-		const float *src_r = static_cast<const float *>(src[0]);
-		const float *src_g = static_cast<const float *>(src[1]);
-		const float *src_b = static_cast<const float *>(src[2]);
-		float *dst_r = static_cast<float *>(dst[0]);
-		float *dst_g = static_cast<float *>(dst[1]);
-		float *dst_b = static_cast<float *>(dst[2]);
+		const float *src_r = src[0];
+		const float *src_g = src[1];
+		const float *src_b = src[2];
+		float *dst_r = dst[0];
+		float *dst_g = dst[1];
+		float *dst_b = dst[2];
 
 		const __m256 scale_r = _mm256_broadcast_ss(m_scale + 0);
 		const __m256 scale_g = _mm256_broadcast_ss(m_scale + 1);

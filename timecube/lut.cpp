@@ -1,7 +1,9 @@
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <stdexcept>
 #include <tuple>
 #include <vector>
 #include "cube.h"
@@ -10,6 +12,61 @@
 
 namespace timecube {
 namespace {
+
+template <class T>
+struct ToFloat {
+	float scale;
+	unsigned offset;
+
+	explicit ToFloat(const PixelFormat &format) :
+		scale{},
+		offset{}
+	{
+		assert(format.type == PixelType::BYTE || format.type == PixelType::WORD);
+
+		if (format.fullrange) {
+			scale = 1.0f / ((1UL << format.depth) - 1);
+			offset = 0;
+		} else {
+			assert(format.depth >= 8);
+			scale = 1.0f / (219UL << (format.depth - 8));
+			offset = 16 << (format.depth - 8);
+		}
+	}
+
+	float operator()(T x)
+	{
+		return (x - offset) * scale;
+	}
+};
+
+template <class T>
+struct FromFloat {
+	float scale;
+	unsigned offset;
+
+	explicit FromFloat(const PixelFormat &format) :
+		scale{},
+		offset{}
+	{
+		assert(format.type == PixelType::BYTE || format.type == PixelType::WORD);
+
+		if (format.fullrange) {
+			scale = static_cast<float>((1UL << format.depth) - 1);
+			offset = 0;
+		} else {
+			assert(format.depth >= 8);
+			scale = static_cast<float>(219UL << (format.depth - 8));
+			offset = 16 << (format.depth - 8);
+		}
+	}
+
+	T operator()(float x)
+	{
+		return static_cast<T>(std::lrint(x * scale) + offset);
+	}
+};
+
 
 struct Vector3 : public std::array<float, 3> {
 	Vector3() = default;
@@ -57,6 +114,7 @@ Vector3 trilinear_interp(const Vector3 tri[2][2][2], float dist_x, float dist_y,
 	return tmp0;
 }
 
+
 class Lut1D : public Lut {
 	std::vector<float> m_lut[3];
 	float m_scale[3];
@@ -79,14 +137,14 @@ public:
 		}
 	}
 
-	void process(const void * const src[3], void * const dst[3], unsigned width) override
+	void process(const float * const src[3], float * const dst[3], unsigned width) const override
 	{
 		uint_least32_t lut_max = static_cast<uint_least32_t>(m_lut[0].size() - 1);
 		float lut_clamp = std::nextafterf(static_cast<float>(lut_max), -INFINITY);
 
 		for (unsigned p = 0; p < 3; ++p) {
-			const float *src_p = static_cast<const float *>(src[p]);
-			float *dst_p = static_cast<float *>(dst[p]);
+			const float *src_p = src[p];
+			float *dst_p = dst[p];
 
 			for (unsigned i = 0; i < width; ++i) {
 				float x, d;
@@ -131,14 +189,14 @@ public:
 		}
 	}
 
-	void process(const void * const src[3], void * const dst[3], unsigned width) override
+	void process(const float * const src[3], float * const dst[3], unsigned width) const override
 	{
-		const float *src_r = static_cast<const float *>(src[0]);
-		const float *src_g = static_cast<const float *>(src[1]);
-		const float *src_b = static_cast<const float *>(src[2]);
-		float *dst_r = static_cast<float *>(dst[0]);
-		float *dst_g = static_cast<float *>(dst[1]);
-		float *dst_b = static_cast<float *>(dst[2]);
+		const float *src_r = src[0];
+		const float *src_g = src[1];
+		const float *src_b = src[2];
+		float *dst_r = dst[0];
+		float *dst_g = dst[1];
+		float *dst_b = dst[2];
 
 		uint_least32_t lut_max = m_dim - 1;
 		float lut_clamp = std::nextafter(static_cast<float>(lut_max), -INFINITY);
@@ -194,6 +252,62 @@ public:
 
 } // namespace
 
+
+
+void Lut::to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const
+{
+	switch (format.type) {
+	case PixelType::BYTE:
+		std::transform(static_cast<const uint8_t *>(src[0]), static_cast<const uint8_t *>(src[0]) + width, dst[0], ToFloat<uint8_t>{ format });
+		std::transform(static_cast<const uint8_t *>(src[1]), static_cast<const uint8_t *>(src[1]) + width, dst[1], ToFloat<uint8_t>{ format });
+		std::transform(static_cast<const uint8_t *>(src[2]), static_cast<const uint8_t *>(src[2]) + width, dst[2], ToFloat<uint8_t>{ format });
+		break;
+	case PixelType::WORD:
+		std::transform(static_cast<const uint16_t *>(src[0]), static_cast<const uint16_t *>(src[0]) + width, dst[0], ToFloat<uint16_t>{ format });
+		std::transform(static_cast<const uint16_t *>(src[1]), static_cast<const uint16_t *>(src[1]) + width, dst[1], ToFloat<uint16_t>{ format });
+		std::transform(static_cast<const uint16_t *>(src[2]), static_cast<const uint16_t *>(src[2]) + width, dst[2], ToFloat<uint16_t>{ format });
+		break;
+	case PixelType::HALF:
+		throw std::runtime_error{ "half precision not implemented" };
+	case PixelType::FLOAT:
+		std::copy_n(static_cast<const float *>(src[0]), width, dst[0]);
+		std::copy_n(static_cast<const float *>(src[1]), width, dst[1]);
+		std::copy_n(static_cast<const float *>(src[2]), width, dst[2]);
+		break;
+	default:
+		throw std::logic_error{ "bad pixel type" };
+	}
+}
+
+void Lut::from_float(const float * const src[3], void * const dst[3], const PixelFormat &format, unsigned width) const
+{
+	switch (format.type) {
+	case PixelType::BYTE:
+		std::transform(src[0], src[0] + width, static_cast<uint8_t *>(dst[0]), FromFloat<uint8_t>{ format });
+		std::transform(src[1], src[1] + width, static_cast<uint8_t *>(dst[1]), FromFloat<uint8_t>{ format });
+		std::transform(src[2], src[2] + width, static_cast<uint8_t *>(dst[2]), FromFloat<uint8_t>{ format });
+		break;
+	case PixelType::WORD:
+		std::transform(src[0], src[0] + width, static_cast<uint16_t *>(dst[0]), FromFloat<uint16_t>{ format });
+		std::transform(src[1], src[1] + width, static_cast<uint16_t *>(dst[1]), FromFloat<uint16_t>{ format });
+		std::transform(src[2], src[2] + width, static_cast<uint16_t *>(dst[2]), FromFloat<uint16_t>{ format });
+		break;
+	case PixelType::HALF:
+		throw std::runtime_error{ "half precision not implemented" };
+	case PixelType::FLOAT:
+		std::copy_n(src[0], width, static_cast<float *>(dst[0]));
+		std::copy_n(src[1], width, static_cast<float *>(dst[1]));
+		std::copy_n(src[2], width, static_cast<float *>(dst[2]));
+		break;
+	default:
+		throw std::logic_error{ "bad pixel type" };
+	}
+}
+
+bool Lut::supports_half() const
+{
+	return false;
+}
 
 std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd)
 {

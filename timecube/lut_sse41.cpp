@@ -1,7 +1,9 @@
 #ifdef CUBE_X86
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <smmintrin.h>
 #include "cube.h"
@@ -44,6 +46,151 @@ struct AlignedAllocator {
 	bool operator==(const AlignedAllocator &) const noexcept { return true; }
 	bool operator!=(const AlignedAllocator &) const noexcept { return false; }
 };
+
+
+void byte_to_float(const uint8_t *src, float *dst, float scale, unsigned offset, unsigned width)
+{
+	__m128 scale_ps = _mm_set_ps1(scale);
+	__m128i offset_epu8 = _mm_set1_epi8(offset);
+
+	for (unsigned i = 0; i < (width - width % 16); i += 16) {
+		__m128i lolo, lohi, hilo, hihi;
+		__m128i lo, hi;
+		__m128i x;
+		__m128 y;
+
+		x = _mm_load_si128((const __m128i *)(src + i));
+		x = _mm_subs_epu8(x, offset_epu8);
+
+		lo = _mm_unpacklo_epi8(x, _mm_setzero_si128());
+		hi = _mm_unpackhi_epi8(x, _mm_setzero_si128());
+
+		lolo = _mm_unpacklo_epi16(lo, _mm_setzero_si128());
+		lohi = _mm_unpackhi_epi16(lo, _mm_setzero_si128());
+		hilo = _mm_unpacklo_epi16(hi, _mm_setzero_si128());
+		hihi = _mm_unpackhi_epi16(hi, _mm_setzero_si128());
+
+		y = _mm_cvtepi32_ps(lolo);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 0, y);
+
+		y = _mm_cvtepi32_ps(lohi);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 4, y);
+
+		y = _mm_cvtepi32_ps(hilo);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 8, y);
+
+		y = _mm_cvtepi32_ps(hihi);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 12, y);
+	}
+	for (unsigned i = width - width % 16; i < width; ++i) {
+		dst[i] = (src[i] - offset) * scale;
+	}
+}
+
+void word_to_float(const uint16_t *src, float *dst, float scale, unsigned offset, unsigned width)
+{
+	__m128 scale_ps = _mm_set_ps1(scale);
+	__m128i offset_epu16 = _mm_set1_epi16(offset);
+
+	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+		__m128i lo, hi;
+		__m128i x;
+		__m128 y;
+
+		x = _mm_load_si128((const __m128i *)(src + i));
+		x = _mm_subs_epu16(x, offset_epu16);
+
+		lo = _mm_unpacklo_epi16(x, _mm_setzero_si128());
+		hi = _mm_unpackhi_epi16(x, _mm_setzero_si128());
+
+		y = _mm_cvtepi32_ps(lo);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 0, y);
+
+		y = _mm_cvtepi32_ps(hi);
+		y = _mm_mul_ps(y, scale_ps);
+		_mm_store_ps(dst + i + 4, y);
+	}
+	for (unsigned i = width - width % 8; i < width; ++i) {
+		dst[i] = (src[i] - offset) * scale;
+	}
+}
+
+void float_to_byte(const float *src, uint8_t *dst, float scale, unsigned offset, unsigned width)
+{
+	__m128 scale_ps = _mm_set_ps1(scale);
+	__m128i offset_epu8 = _mm_set1_epi8(offset);
+
+	for (unsigned i = 0; i < (width - width % 16); i += 16) {
+		__m128i lolo, lohi, hilo, hihi;
+		__m128i lo, hi;
+		__m128 x;
+		__m128i y;
+
+		x = _mm_load_ps(src + i + 0);
+		x = _mm_mul_ps(x, scale_ps);
+		lolo = _mm_cvtps_epi32(x);
+
+		x = _mm_load_ps(src + i + 4);
+		x = _mm_mul_ps(x, scale_ps);
+		lohi = _mm_cvtps_epi32(x);
+
+		x = _mm_load_ps(src + i + 8);
+		x = _mm_mul_ps(x, scale_ps);
+		hilo = _mm_cvtps_epi32(x);
+
+		x = _mm_load_ps(src + i + 12);
+		x = _mm_mul_ps(x, scale_ps);
+		hihi = _mm_cvtps_epi32(x);
+
+		lo = _mm_packus_epi32(lolo, lohi);
+		hi = _mm_packus_epi32(hilo, hihi);
+
+		y = _mm_packus_epi16(lo, hi);
+		y = _mm_adds_epu8(y, offset_epu8);
+		_mm_store_si128((__m128i *)(dst + i), y);
+	}
+	for (unsigned i = width - width % 16; i < width; ++i) {
+		float x = src[i] * scale;
+		int y = _mm_cvt_ss2si(_mm_set_ss(x)) + offset;
+		y = std::min(std::max(y, 0), static_cast<int>(UINT8_MAX));
+		dst[i] = static_cast<uint8_t>(y);
+	}
+}
+
+void float_to_word(const float *src, uint16_t *dst, float scale, unsigned offset, unsigned width)
+{
+	__m128 scale_ps = _mm_set_ps1(scale);
+	__m128i offset_epu16 = _mm_set1_epi16(offset);
+
+	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+		__m128i lo, hi;
+		__m128 x;
+		__m128i y;
+
+		x = _mm_load_ps(src + i + 0);
+		x = _mm_mul_ps(x, scale_ps);
+		lo = _mm_cvtps_epi32(x);
+
+		x = _mm_load_ps(src + i + 4);
+		x = _mm_mul_ps(x, scale_ps);
+		hi = _mm_cvtps_epi32(x);
+
+		y = _mm_packus_epi32(lo, hi);
+		y = _mm_adds_epu16(y, offset_epu16);
+		_mm_store_si128((__m128i *)(dst + i), y);
+	}
+	for (unsigned i = width - width % 8; i < width; ++i) {
+		float x = src[i] * scale;
+		int y = _mm_cvt_ss2si(_mm_set_ss(x)) + offset;
+		y = std::min(std::max(y, 0), static_cast<int>(UINT16_MAX));
+		dst[i] = static_cast<uint16_t>(y);
+	}
+}
 
 
 static inline FORCE_INLINE __m128 mm_interp_ps(__m128 lo, __m128 hi, __m128 dist)
@@ -131,18 +278,74 @@ public:
 		}
 	}
 
-	void process(const void * const src[3], void * const dst[3], unsigned width) override
+	void to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const override
+	{
+		if (format.type == PixelType::BYTE || format.type == PixelType::WORD) {
+			float scale;
+			unsigned offset;
+			
+			if (format.fullrange) {
+				scale = 1.0f / ((1UL << format.depth) - 1);
+				offset = 0;
+			} else {
+				scale = 1.0f / (219UL << (format.depth - 8));
+				offset = 16 << (format.depth - 8);
+			}
+
+			if (format.type == PixelType::BYTE) {
+				byte_to_float(static_cast<const uint8_t *>(src[0]), dst[0], scale, offset, width);
+				byte_to_float(static_cast<const uint8_t *>(src[1]), dst[1], scale, offset, width);
+				byte_to_float(static_cast<const uint8_t *>(src[2]), dst[2], scale, offset, width);
+			} else {
+				word_to_float(static_cast<const uint16_t *>(src[0]), dst[0], scale, offset, width);
+				word_to_float(static_cast<const uint16_t *>(src[1]), dst[1], scale, offset, width);
+				word_to_float(static_cast<const uint16_t *>(src[2]), dst[2], scale, offset, width);
+			}
+		} else {
+			Lut::to_float(src, dst, format, width);
+		}
+	}
+
+	void from_float(const float * const src[3], void * const dst[3], const PixelFormat &format, unsigned width) const override
+	{
+		if (format.type == PixelType::BYTE || format.type == PixelType::WORD) {
+			float scale;
+			unsigned offset;
+
+			if (format.fullrange) {
+				scale = static_cast<float>((1UL << format.depth) - 1);
+				offset = 0;
+			} else {
+				scale = static_cast<float>(1.0f / (219UL << (format.depth - 8)));
+				offset = 16 << (format.depth - 8);
+			}
+
+			if (format.type == PixelType::BYTE) {
+				float_to_byte(src[0], static_cast<uint8_t *>(dst[0]), scale, offset, width);
+				float_to_byte(src[1], static_cast<uint8_t *>(dst[1]), scale, offset, width);
+				float_to_byte(src[2], static_cast<uint8_t *>(dst[2]), scale, offset, width);
+			} else {
+				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), scale, offset, width);
+				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), scale, offset, width);
+				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), scale, offset, width);
+			}
+		} else {
+			Lut::from_float(src, dst, format, width);
+		}
+	}
+
+	void process(const float * const src[3], float * const dst[3], unsigned width) const override
 	{
 		const float *lut = m_lut.data();
 		uint32_t lut_stride_g = m_dim * sizeof(float) * 4;
 		uint32_t lut_stride_b = m_dim * m_dim * sizeof(float) * 4;
 
-		const float *src_r = static_cast<const float *>(src[0]);
-		const float *src_g = static_cast<const float *>(src[1]);
-		const float *src_b = static_cast<const float *>(src[2]);
-		float *dst_r = static_cast<float *>(dst[0]);
-		float *dst_g = static_cast<float *>(dst[1]);
-		float *dst_b = static_cast<float *>(dst[2]);
+		const float *src_r = src[0];
+		const float *src_g = src[1];
+		const float *src_b = src[2];
+		float *dst_r = dst[0];
+		float *dst_g = dst[1];
+		float *dst_b = dst[2];
 
 		const __m128 scale_r = _mm_set_ps1(m_scale[0]);
 		const __m128 scale_g = _mm_set_ps1(m_scale[1]);

@@ -49,8 +49,8 @@ int main(int argc, char **argv)
 	alignas(32) float g[1024] = { 0 };
 	alignas(32) float b[1024] = { 0 };
 
-	const void *src[3] = { r, g, b };
-	void *dst[3] = { r, g, b };
+	const float *src[3] = { r, g, b };
+	float *dst[3] = { r, g, b };
 
 	auto start = std::chrono::high_resolution_clock::now();
 	for (unsigned i = 0; i < niter; ++i) {

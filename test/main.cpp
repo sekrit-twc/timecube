@@ -54,8 +54,8 @@ int main(int argc, char **argv)
 	}
 
 	try {
-		const void *src[3] = { &x, &y, &z };
-		void *dst[3] = { &x, &y, &z };
+		const float *src[3] = { &x, &y, &z };
+		float *dst[3] = { &x, &y, &z };
 
 		lut->process(src, dst, 1);
 		std::cout << "result: (" << x << ", " << y << ", " << z << ")\n";

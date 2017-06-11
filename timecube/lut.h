@@ -9,9 +9,28 @@ namespace timecube {
 
 struct Cube;
 
+enum class PixelType {
+	BYTE,
+	WORD,
+	HALF,
+	FLOAT,
+};
+
+struct PixelFormat {
+	PixelType type;
+	unsigned depth;
+	bool fullrange;
+};
+
 class Lut {
 public:
-	virtual void process(const void * const src[3], void * const dst[3], unsigned width) = 0;
+	virtual void to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const;
+
+	virtual void from_float(const float * const src[3], void * const dst[3], const PixelFormat &format, unsigned width) const;
+
+	virtual bool supports_half() const;
+
+	virtual void process(const float * const src[3], float * const dst[3], unsigned width) const = 0;
 };
 
 std::unique_ptr<Lut> create_lut_impl(const Cube &cube, bool enable_simd);
