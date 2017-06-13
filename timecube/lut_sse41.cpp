@@ -197,10 +197,10 @@ static inline FORCE_INLINE __m128 mm_interp_ps(__m128 lo, __m128 hi, __m128 dist
 {
 	__m128 x;
 
-	// (1 - x) * a == -x * a + a
+	// (1 - x) * a == a - x * a
 	x = _mm_mul_ps(dist, lo);
 	x = _mm_sub_ps(lo, x);
-	// (-x * a + a) + x * b
+	// (a - x * a) + x * b
 	x = _mm_add_ps(_mm_mul_ps(dist, hi), x);
 
 	return x;

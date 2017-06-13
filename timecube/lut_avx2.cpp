@@ -432,11 +432,6 @@ public:
 		const __m256i lut_stride_g_epi32 = _mm256_set1_epi32(lut_stride_g);
 		const __m256i lut_stride_b_epi32 = _mm256_set1_epi32(lut_stride_b);
 
-		const __m256i permute01_mask = _mm256_set_epi32(1, 1, 1, 1, 0, 0, 0, 0);
-		const __m256i permute23_mask = _mm256_set_epi32(3, 3, 3, 3, 2, 2, 2, 2);
-		const __m256i permute45_mask = _mm256_set_epi32(5, 5, 5, 5, 4, 4, 4, 4);
-		const __m256i permute67_mask = _mm256_set_epi32(7, 7, 7, 7, 6, 6, 6, 6);
-
 		for (unsigned i = 0; i < width; i += 8) {
 			__m256 r = _mm256_load_ps(src_r + i);
 			__m256 g = _mm256_load_ps(src_g + i);
