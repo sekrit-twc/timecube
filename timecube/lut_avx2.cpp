@@ -50,82 +50,41 @@ struct AlignedAllocator {
 
 void byte_to_float(const uint8_t *src, float *dst, float scale, float offset, unsigned width)
 {
-	__m256 scale_ps = _mm256_set1_ps(scale);
-	__m256 offset_ps = _mm256_set1_ps(offset);
+	const __m256 scale_ps = _mm256_set1_ps(scale);
+	const __m256 offset_ps = _mm256_set1_ps(offset);
 
-	for (unsigned i = 0; i < (width - width % 32); i += 32) {
-		__m256i lolo, lohi, hilo, hihi;
-		__m256i lo, hi;
-		__m256i x;
-		__m256 y;
+	for (unsigned i = 0; i < width - width % 8; i += 8) {
+		__m256i x = _mm256_cvtepu8_epi32(_mm_loadl_epi64((const __m128i *)(src + i)));
+		__m256 y = _mm256_cvtepi32_ps(x);
 
-		x = _mm256_load_si256((const __m256i *)(src + i));
-		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
-
-		lo = _mm256_unpacklo_epi8(x, _mm256_setzero_si256());
-		lo = _mm256_permute4x64_epi64(lo, _MM_SHUFFLE(3, 1, 2, 0));
-
-		hi = _mm256_unpackhi_epi8(x, _mm256_setzero_si256());
-		hi = _mm256_permute4x64_epi64(hi, _MM_SHUFFLE(3, 1, 2, 0));
-
-		lolo = _mm256_unpacklo_epi16(lo, _mm256_setzero_si256());
-		lohi = _mm256_unpackhi_epi16(lo, _mm256_setzero_si256());
-		hilo = _mm256_unpacklo_epi16(hi, _mm256_setzero_si256());
-		hihi = _mm256_unpackhi_epi16(hi, _mm256_setzero_si256());
-
-		y = _mm256_cvtepi32_ps(lolo);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 0, y);
-
-		y = _mm256_cvtepi32_ps(lohi);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 8, y);
-
-		y = _mm256_cvtepi32_ps(hilo);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 16, y);
-
-		y = _mm256_cvtepi32_ps(hihi);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 24, y);
+		y = _mm256_fmadd_ps(scale_ps, y, offset_ps);
+		_mm256_store_ps(dst + i, y);
 	}
-	for (unsigned i = width - width % 32; i < width; ++i) {
+	for (unsigned i = width - width % 8; i < width; ++i) {
 		dst[i] = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
 	}
 }
 
 void word_to_float(const uint16_t *src, float *dst, float scale, float offset, unsigned width)
 {
-	__m256 scale_ps = _mm256_set1_ps(scale);
-	__m256 offset_ps = _mm256_set1_ps(offset);
+	const __m256 scale_ps = _mm256_set1_ps(scale);
+	const __m256 offset_ps = _mm256_set1_ps(offset);
 
-	for (unsigned i = 0; i < (width - width % 16); i += 16) {
-		__m256i lo, hi;
-		__m256i x;
-		__m256 y;
+	for (unsigned i = 0; i < width - width % 8; i += 8) {
+		__m256i x = _mm256_cvtepu16_epi32(_mm_load_si128((const __m128i *)(src + i)));
+		__m256 y = _mm256_cvtepi32_ps(x);
 
-		x = _mm256_load_si256((const __m256i *)(src + i));
-		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
-
-		lo = _mm256_unpacklo_epi16(x, _mm256_setzero_si256());
-		hi = _mm256_unpackhi_epi16(x, _mm256_setzero_si256());
-
-		y = _mm256_cvtepi32_ps(lo);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 0, y);
-
-		y = _mm256_cvtepi32_ps(hi);
-		y = _mm256_fmadd_ps(y, scale_ps, offset_ps);
-		_mm256_store_ps(dst + i + 8, y);
+		y = _mm256_fmadd_ps(scale_ps, y, offset_ps);
+		_mm256_store_ps(dst + i, y);
 	}
-	for (unsigned i = width - width % 16; i < width; ++i) {
+	for (unsigned i = width - width % 8; i < width; ++i) {
 		dst[i] = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
 	}
 }
 
 void half_to_float(const uint16_t *src, float *dst, unsigned width)
 {
-	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+	for (unsigned i = 0; i < width - width % 8; i += 8) {
 		__m128i x = _mm_load_si128((const __m128i *)(src + i));
 		__m256 y = _mm256_cvtph_ps(x);
 		_mm256_store_ps(dst + i, y);
@@ -137,42 +96,28 @@ void half_to_float(const uint16_t *src, float *dst, unsigned width)
 
 void float_to_byte(const float *src, uint8_t *dst, float scale, float offset, unsigned width)
 {
-	__m256 scale_ps = _mm256_set1_ps(scale);
-	__m256 offset_ps = _mm256_set1_ps(offset);
+	const __m256 scale_ps = _mm256_set1_ps(scale);
+	const __m256 offset_ps = _mm256_set1_ps(offset);
 
-	for (unsigned i = 0; i < (width - width % 32); i += 32) {
-		__m256i lolo, lohi, hilo, hihi;
-		__m256i lo, hi;
-		__m256 x;
-		__m256i y;
+	for (unsigned i = 0; i < width - width % 16; i += 16) {
+		__m256 lo = _mm256_load_ps(src + i + 0);
+		__m256 hi = _mm256_load_ps(src + i + 8);
+		__m256i x, y;
 
-		x = _mm256_load_ps(src + i + 0);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		lolo = _mm256_cvtps_epi32(x);
+		lo = _mm256_fmadd_ps(scale_ps, lo, offset_ps);
+		hi = _mm256_fmadd_ps(scale_ps, hi, offset_ps);
 
-		x = _mm256_load_ps(src + i + 8);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		lohi = _mm256_cvtps_epi32(x);
+		x = _mm256_cvtps_epi32(lo);
+		y = _mm256_cvtps_epi32(hi);
 
-		x = _mm256_load_ps(src + i + 16);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		hilo = _mm256_cvtps_epi32(x);
+		x = _mm256_packus_epi32(x, y);
+		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
+		x = _mm256_packus_epi16(x, x);
+		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
 
-		x = _mm256_load_ps(src + i + 24);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		hihi = _mm256_cvtps_epi32(x);
-
-		lo = _mm256_packus_epi32(lolo, lohi);
-		lo = _mm256_permute4x64_epi64(lo, _MM_SHUFFLE(3, 1, 2, 0));
-
-		hi = _mm256_packus_epi32(hilo, hihi);
-		hi = _mm256_permute4x64_epi64(hi, _MM_SHUFFLE(3, 1, 2, 0));
-
-		y = _mm256_packus_epi16(lo, hi);
-		y = _mm256_permute4x64_epi64(y, _MM_SHUFFLE(3, 1, 2, 0));
-		_mm256_store_si256((__m256i *)(dst + i), y);
+		_mm_store_si128((__m128i *)(dst + i), _mm256_castsi256_si128(x));
 	}
-	for (unsigned i = width - width % 32; i < width; ++i) {
+	for (unsigned i = width - width % 16; i < width; ++i) {
 		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
 		int y = _mm_cvt_ss2si(_mm_set_ss(x));
 		y = std::min(std::max(y, 0), static_cast<int>(UINT8_MAX));
@@ -182,25 +127,24 @@ void float_to_byte(const float *src, uint8_t *dst, float scale, float offset, un
 
 void float_to_word(const float *src, uint16_t *dst, float scale, float offset, unsigned width)
 {
-	__m256 scale_ps = _mm256_set1_ps(scale);
-	__m256 offset_ps = _mm256_set1_ps(offset);
+	const __m256 scale_ps = _mm256_set1_ps(scale);
+	const __m256 offset_ps = _mm256_set1_ps(offset);
 
-	for (unsigned i = 0; i < (width - width % 16); i += 16) {
-		__m256i lo, hi;
-		__m256 x;
-		__m256i y;
+	for (unsigned i = 0; i < width - width % 16; i += 16) {
+		__m256 lo = _mm256_load_ps(src + i + 0);
+		__m256 hi = _mm256_load_ps(src + i + 8);
+		__m256i x, y;
 
-		x = _mm256_load_ps(src + i + 0);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		lo = _mm256_cvtps_epi32(x);
+		lo = _mm256_fmadd_ps(scale_ps, lo, offset_ps);
+		hi = _mm256_fmadd_ps(scale_ps, hi, offset_ps);
 
-		x = _mm256_load_ps(src + i + 8);
-		x = _mm256_fmadd_ps(x, scale_ps, offset_ps);
-		hi = _mm256_cvtps_epi32(x);
+		x = _mm256_cvtps_epi32(lo);
+		y = _mm256_cvtps_epi32(hi);
 
-		y = _mm256_packus_epi32(lo, hi);
-		y = _mm256_permute4x64_epi64(y, _MM_SHUFFLE(3, 1, 2, 0));
-		_mm256_store_si256((__m256i *)(dst + i), y);
+		x = _mm256_packus_epi32(x, y);
+		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
+
+		_mm256_store_si256((__m256i *)(dst + i), x);
 	}
 	for (unsigned i = width - width % 16; i < width; ++i) {
 		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
@@ -212,7 +156,7 @@ void float_to_word(const float *src, uint16_t *dst, float scale, float offset, u
 
 void float_to_half(const float *src, uint16_t *dst, unsigned width)
 {
-	for (unsigned i = 0; i < (width - width % 8); i += 8) {
+	for (unsigned i = 0; i < width - width % 8; i += 8) {
 		__m256 x = _mm256_load_ps(src + i);
 		__m128i y = _mm256_cvtps_ph(x, 0);
 		_mm_store_si128((__m128i *)(dst + i), y);
@@ -305,7 +249,7 @@ static inline FORCE_INLINE void lut3d_unpack_result(const __m256 &result04, cons
 	__m256 t1 = _mm256_shuffle_ps(result26, result37, 0x44);
 	__m256 t2 = _mm256_shuffle_ps(result04, result15, 0xEE);
 	__m256 t3 = _mm256_shuffle_ps(result26, result37, 0xEE);
-	
+
 	__m256 tt0 = _mm256_shuffle_ps(t0, t1, 0x88); // r0 r1 r2 r3 | r4 r5 r6 r7
 	__m256 tt1 = _mm256_shuffle_ps(t0, t1, 0xDD); // g0 g1 g2 g3 | g4 g5 g6 g7
 	__m256 tt2 = _mm256_shuffle_ps(t2, t3, 0x88); // b0 b1 b2 b3 | b4 b5 b6 b7

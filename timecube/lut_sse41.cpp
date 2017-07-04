@@ -283,7 +283,7 @@ public:
 		if (format.type == PixelType::BYTE || format.type == PixelType::WORD) {
 			float scale;
 			unsigned offset;
-			
+
 			if (format.fullrange) {
 				scale = 1.0f / ((1UL << format.depth) - 1);
 				offset = 0;
