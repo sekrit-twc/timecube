@@ -225,7 +225,7 @@ static inline FORCE_INLINE __m128i lut3d_calculate_index(const __m128 &r, const 
 // Performs trilinear interpolation on one pixels.
 // Returns [R G B x].
 static inline FORCE_INLINE __m128 lut3d_trilinear_interp(const void *lut, ptrdiff_t stride_g, ptrdiff_t stride_b, ptrdiff_t idx,
-                                                         const __m128 &r, const __m128 &g, const __m128 &b)
+                                                         __m128 r, __m128 g, __m128 b)
 {
 #define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
 	__m128 r0g0b0, r1g0b0, r0g1b0, r1g1b0, r0g0b1, r1g0b1, r0g1b1, r1g1b1;
