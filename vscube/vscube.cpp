@@ -98,10 +98,10 @@ class TimeCube : public vsxx::FilterBase {
 
 	void run(const ConstVideoFrame &src_frame, const VideoFrame &dst_frame, const timecube::PixelFormat &format, unsigned width, unsigned height) const
 	{
-		assert(src_frame.width(0) == width);
-		assert(src_frame.height(0) == height);
-		assert(dst_frame.width(0) == width);
-		assert(dst_frame.height(0) == height);
+		assert(static_cast<unsigned>(src_frame.width(0)) == width);
+		assert(static_cast<unsigned>(src_frame.height(0)) == height);
+		assert(static_cast<unsigned>(dst_frame.width(0)) == width);
+		assert(static_cast<unsigned>(dst_frame.height(0)) == height);
 
 		const void *src_p[3];
 		ptrdiff_t src_stride[3];
