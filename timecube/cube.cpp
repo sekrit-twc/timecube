@@ -3,6 +3,7 @@
 #include <climits>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <locale>
 #include <memory>
 #include <sstream>
