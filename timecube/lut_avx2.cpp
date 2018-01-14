@@ -211,6 +211,11 @@ static inline FORCE_INLINE __m256 lut3d_trilinear_interp(const void *lut, ptrdif
                                                          __m256 r, __m256 g, __m256 b)
 {
 #define LUT_OFFSET(x) reinterpret_cast<const float *>(static_cast<const unsigned char *>(lut) + (x))
+	__m256 g_lo = _mm256_permute2f128_ps(g, g, 0x00);
+	__m256 b_lo = _mm256_permute2f128_ps(b, b, 0x00);
+	__m256 g_hi = _mm256_permute2f128_ps(g, g, 0x11);
+	__m256 b_hi = _mm256_permute2f128_ps(b, b, 0x11);
+
 	__m256 g0b0_a, g0b1_a, g1b0_a, g1b1_a;
 	__m256 g0b0_b, g0b1_b, g1b0_b, g1b1_b;
 
@@ -219,20 +224,20 @@ static inline FORCE_INLINE __m256 lut3d_trilinear_interp(const void *lut, ptrdif
 	g0b1_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo + stride_b));
 	g1b1_a = _mm256_loadu_ps(LUT_OFFSET(idx_lo + stride_b + stride_g));
 
-	g0b0_a = mm256_interp_ps(g0b0_a, g1b0_a, g);
-	g0b1_a = mm256_interp_ps(g0b1_a, g1b1_a, g);
+	g0b0_a = mm256_interp_ps(g0b0_a, g1b0_a, g_lo);
+	g0b1_a = mm256_interp_ps(g0b1_a, g1b1_a, g_lo);
 
-	g0b0_a = mm256_interp_ps(g0b0_a, g0b1_a, b);
+	g0b0_a = mm256_interp_ps(g0b0_a, g0b1_a, b_lo);
 
 	g0b0_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi));
 	g1b0_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_g));
 	g0b1_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_b));
 	g1b1_b = _mm256_loadu_ps(LUT_OFFSET(idx_hi + stride_b + stride_g));
 
-	g0b0_b = mm256_interp_ps(g0b0_b, g1b0_b, g);
-	g0b1_b = mm256_interp_ps(g0b1_b, g1b1_b, g);
+	g0b0_b = mm256_interp_ps(g0b0_b, g1b0_b, g_hi);
+	g0b1_b = mm256_interp_ps(g0b1_b, g1b1_b, g_hi);
 
-	g0b0_b = mm256_interp_ps(g0b0_b, g0b1_b, b);
+	g0b0_b = mm256_interp_ps(g0b0_b, g0b1_b, b_hi);
 
 	mm256_transpose2_ps128(g0b0_a, g0b0_b);
 	g0b0_a = mm256_interp_ps(g0b0_a, g0b0_b, r);
