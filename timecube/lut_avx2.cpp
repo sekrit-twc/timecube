@@ -246,7 +246,7 @@ static inline FORCE_INLINE __m256 lut3d_trilinear_interp(const void *lut, ptrdif
 #undef LUT_OFFSET
 }
 
-// Converts packed [R0 G0 B0 xx R4 G4 B4 xx] [R1 G1 B1 xx R5 G5 B5 xx] ... to [R1 R2 ...] [G1 G2 ...] [B1 B2 ... ].
+// Converts packed [R0 G0 B0 xx R4 G4 B4 xx] [R1 G1 B1 xx R5 G5 B5 xx] ... to [R1 R2 ...] [G1 G2 ...] [B1 B2 ...].
 static inline FORCE_INLINE void lut3d_unpack_result(const __m256 &result04, const __m256 &result15, const __m256 &result26, const __m256 &result37,
                                                     __m256 &r, __m256 &g, __m256 &b)
 {

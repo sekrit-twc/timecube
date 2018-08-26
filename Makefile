@@ -24,8 +24,9 @@ vsxx_HDRS = \
 	vsxx/vsxx_pluginmain.h
 
 ifeq ($(X86), 1)
-  timecube/lut_avx2.o: EXTRA_CXXFLAGS := -mf16c -mavx2 -mfma
+  timecube/lut_avx2.o: EXTRA_CXXFLAGS := -mf16c -mavx2 -mfma -march=haswell
   timecube/lut_sse41.o: EXTRA_CXXFLAGS := -msse4.1
+  timecube/lut_avx512.o: EXTRA_CXXFLAGS := -mavx512f -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mtune=skylake-avx512
   MY_CPPFLAGS := -DCUBE_X86 $(MY_CPPFLAGS)
 endif
 

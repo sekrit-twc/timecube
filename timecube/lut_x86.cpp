@@ -17,9 +17,10 @@ namespace timecube {
 namespace {
 
 enum {
-	SIMD_NONE  = 0,
-	SIMD_SSE42 = 1,
-	SIMD_AVX2  = 2,
+	SIMD_NONE   = 0,
+	SIMD_SSE42  = 1,
+	SIMD_AVX2   = 2,
+	SIMD_AVX512 = 3,
 	SIMD_MAX   = INT_MAX,
 };
 
@@ -27,18 +28,22 @@ enum {
  * Bitfield of selected x86 feature flags.
  */
 struct X86Capabilities {
-	unsigned sse   : 1;
-	unsigned sse2  : 1;
-	unsigned sse3  : 1;
-	unsigned ssse3 : 1;
-	unsigned fma   : 1;
-	unsigned sse41 : 1;
-	unsigned sse42 : 1;
-	unsigned avx   : 1;
-	unsigned f16c  : 1;
-	unsigned avx2  : 1;
+	unsigned sse      : 1;
+	unsigned sse2     : 1;
+	unsigned sse3     : 1;
+	unsigned ssse3    : 1;
+	unsigned fma      : 1;
+	unsigned sse41    : 1;
+	unsigned sse42    : 1;
+	unsigned avx      : 1;
+	unsigned f16c     : 1;
+	unsigned avx2     : 1;
+	unsigned avx512f  : 1;
+	unsigned avx512dq : 1;
+	unsigned avx512cd : 1;
+	unsigned avx512bw : 1;
+	unsigned avx512vl : 1;
 };
-
 /**
  * Execute the CPUID instruction.
  *
@@ -87,27 +92,37 @@ X86Capabilities query_x86_capabilities() noexcept
 	int regs[4] = { 0 };
 
 	do_cpuid(regs, 1, 0);
-	caps.sse   = !!(regs[3] & (1 << 25));
-	caps.sse2  = !!(regs[3] & (1 << 26));
-	caps.sse3  = !!(regs[2] & (1 << 0));
-	caps.ssse3 = !!(regs[2] & (1 << 9));
-	caps.fma   = !!(regs[2] & (1 << 12));
-	caps.sse41 = !!(regs[2] & (1 << 19));
-	caps.sse42 = !!(regs[2] & (1 << 20));
+	caps.sse      = !!(regs[3] & (1U << 25));
+	caps.sse2     = !!(regs[3] & (1U << 26));
+	caps.sse3     = !!(regs[2] & (1U << 0));
+	caps.ssse3    = !!(regs[2] & (1U << 9));
+	caps.fma      = !!(regs[2] & (1U << 12));
+	caps.sse41    = !!(regs[2] & (1U << 19));
+	caps.sse42    = !!(regs[2] & (1U << 20));
 
 	// osxsave
-	if (regs[2] & (1 << 27))
+	if (regs[2] & (1U << 27))
 		xcr0 = do_xgetbv(0);
 
 	// XMM and YMM state.
 	if ((xcr0 & 0x06) != 0x06)
 		return caps;
 
-	caps.avx   = !!(regs[2] & (1 << 28));
-	caps.f16c  = !!(regs[2] & (1 << 29));
+	caps.avx      = !!(regs[2] & (1U << 28));
+	caps.f16c     = !!(regs[2] & (1U << 29));
 
 	do_cpuid(regs, 7, 0);
-	caps.avx2  = !!(regs[1] & (1 << 5));
+	caps.avx2     = !!(regs[1] & (1U << 5));
+
+	// ZMM state.
+	if ((xcr0 & 0xE0) != 0xE0)
+		return caps;
+
+	caps.avx512f  = !!(regs[1] & (1U << 16));
+	caps.avx512dq = !!(regs[1] & (1U << 17));
+	caps.avx512cd = !!(regs[1] & (1U << 28));
+	caps.avx512bw = !!(regs[1] & (1U << 30));
+	caps.avx512vl = !!(regs[1] & (1U << 31));
 
 	return caps;
 }
@@ -120,6 +135,8 @@ std::unique_ptr<Lut> create_lut_impl_x86(const Cube &cube, int simd)
 	X86Capabilities caps = query_x86_capabilities();
 	std::unique_ptr<Lut> ret;
 
+	if (!ret && simd >= SIMD_AVX512 && caps.avx512f && caps.avx512bw && caps.avx512dq && caps.avx512vl)
+		ret = create_lut_impl_avx512(cube);
 	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
 		ret = create_lut_impl_avx2(cube);
 	if (!ret && simd >= SIMD_SSE42 && caps.sse41)

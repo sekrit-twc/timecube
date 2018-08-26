@@ -222,7 +222,7 @@ static inline FORCE_INLINE __m128i lut3d_calculate_index(const __m128 &r, const 
 	return _mm_add_epi32(_mm_add_epi32(idx_r, idx_g), idx_b);
 }
 
-// Performs trilinear interpolation on one pixels.
+// Performs trilinear interpolation on one pixel.
 // Returns [R G B x].
 static inline FORCE_INLINE __m128 lut3d_trilinear_interp(const void *lut, ptrdiff_t stride_g, ptrdiff_t stride_b, ptrdiff_t idx,
                                                          __m128 r, __m128 g, __m128 b)

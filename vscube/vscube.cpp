@@ -76,7 +76,7 @@ class TimeCube : public vsxx::FilterBase {
 		void *dst_p[3] = { dst[0], dst[1], dst[2] };
 		float *tmp[3] = { 0 };
 
-		tmp_buf.reset(vs_aligned_malloc<float>(aligned_width * 3 * sizeof(float), 32));
+		tmp_buf.reset(vs_aligned_malloc<float>(aligned_width * 3 * sizeof(float), 64));
 		if (!tmp_buf)
 			throw std::bad_alloc{};
 
