@@ -391,7 +391,7 @@ public:
 			__m256i idx;
 			__m128i idx_lo, idx_hi;
 
-			uint32_t idx_scalar_lo, idx_scalar_hi;
+			size_t idx_scalar_lo, idx_scalar_hi;
 
 			// Input domain remapping.
 			r = _mm256_fmadd_ps(r, scale_r, offset_r);
@@ -418,34 +418,42 @@ public:
 			b = _mm256_sub_ps(b, _mm256_floor_ps(b));
 
 			// Interpolation.
+#if SIZE_MAX >= UINT64_MAX
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi64((x), (idx) / 2)
+  #define EXTRACT_ODD(out, x, idx) ((out) >> 32)
+#else
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi32((x), (idx))
+  #define EXTRACT_ODD(out, x, idx) _mm_extract_epi32((x), (idx))
+#endif
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(0, 0, 0, 0));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(0, 0, 0, 0));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(0, 0, 0, 0));
-			idx_scalar_lo = _mm_extract_epi32(idx_lo, 0);
-			idx_scalar_hi = _mm_extract_epi32(idx_hi, 0);
-			result04 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
+			idx_scalar_lo = EXTRACT_EVEN(idx_scalar_lo, idx_lo, 0);
+			idx_scalar_hi = EXTRACT_EVEN(idx_scalar_hi, idx_hi, 0);
+			result04 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo & 0xFFFFFFFFU, idx_scalar_hi & 0xFFFFFFFFU, rtmp, gtmp, btmp);
 
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(1, 1, 1, 1));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(1, 1, 1, 1));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(1, 1, 1, 1));
-			idx_scalar_lo = _mm_extract_epi32(idx_lo, 1);
-			idx_scalar_hi = _mm_extract_epi32(idx_hi, 1);
+			idx_scalar_lo = EXTRACT_ODD(idx_scalar_lo, idx_lo, 1);
+			idx_scalar_hi = EXTRACT_ODD(idx_scalar_hi, idx_hi, 1);
 			result15 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
 
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(2, 2, 2, 2));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(2, 2, 2, 2));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(2, 2, 2, 2));
-			idx_scalar_lo = _mm_extract_epi32(idx_lo, 2);
-			idx_scalar_hi = _mm_extract_epi32(idx_hi, 2);
-			result26 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
+			idx_scalar_lo = EXTRACT_EVEN(idx_scalar_lo, idx_lo, 2);
+			idx_scalar_hi = EXTRACT_EVEN(idx_scalar_hi, idx_hi, 2);
+			result26 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo & 0xFFFFFFFFU, idx_scalar_hi & 0xFFFFFFFFU, rtmp, gtmp, btmp);
 
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(3, 3, 3, 3));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(3, 3, 3, 3));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(3, 3, 3, 3));
-			idx_scalar_lo = _mm_extract_epi32(idx_lo, 3);
-			idx_scalar_hi = _mm_extract_epi32(idx_hi, 3);
+			idx_scalar_lo = EXTRACT_ODD(idx_scalar_lo, idx_lo, 3);
+			idx_scalar_hi = EXTRACT_ODD(idx_scalar_hi, idx_hi, 3);
 			result37 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar_lo, idx_scalar_hi, rtmp, gtmp, btmp);
-
+#undef EXTRACT_ODD
+#undef EXTRACT_EVEN
 			lut3d_unpack_result(result04, result15, result26, result37, r, g, b);
 
 			if (i + 8 > width) {

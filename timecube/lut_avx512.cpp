@@ -385,7 +385,7 @@ public:
 			__m512i idx;
 			__m128i idx_lolo, idx_lohi, idx_hilo, idx_hihi;
 
-			uint32_t idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi;
+			size_t idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi;
 
 			// Input domain remapping.
 			r = _mm512_fmadd_ps(r, scale_r, offset_r);
@@ -414,24 +414,31 @@ public:
 			b = _mm512_sub_ps(b, _mm512_roundscale_ps(b, 1));
 
 			// Interpolation.
+#if SIZE_MAX >= UINT64_MAX
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi64((x), (idx) / 2)
+  #define EXTRACT_ODD(out, x, idx) ((out) >> 32)
+#else
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi32((x), (idx))
+  #define EXTRACT_ODD(out, x, idx) _mm_extract_epi32((x), (idx))
+#endif
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(0, 0, 0, 0));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(0, 0, 0, 0));
 			btmp = _mm512_permute_ps(b, _MM_SHUFFLE(0, 0, 0, 0));
-			idx_scalar_lolo = _mm_extract_epi32(idx_lolo, 0);
-			idx_scalar_lohi = _mm_extract_epi32(idx_lohi, 0);
-			idx_scalar_hilo = _mm_extract_epi32(idx_hilo, 0);
-			idx_scalar_hihi = _mm_extract_epi32(idx_hihi, 0);
+			idx_scalar_lolo = EXTRACT_EVEN(idx_scalar_lolo, idx_lolo, 0);
+			idx_scalar_lohi = EXTRACT_EVEN(idx_scalar_lohi, idx_lohi, 0);
+			idx_scalar_hilo = EXTRACT_EVEN(idx_scalar_hilo, idx_hilo, 0);
+			idx_scalar_hihi = EXTRACT_EVEN(idx_scalar_hihi, idx_hihi, 0);
 			result048c = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b,
-			                                    idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi,
+			                                    idx_scalar_lolo & 0xFFFFFFFFU, idx_scalar_lohi & 0xFFFFFFFFU, idx_scalar_hilo & 0xFFFFFFFFU, idx_scalar_hihi & 0xFFFFFFFFU,
 			                                    rtmp, gtmp, btmp);
 
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(1, 1, 1, 1));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(1, 1, 1, 1));
 			btmp = _mm512_permute_ps(b, _MM_SHUFFLE(1, 1, 1, 1));
-			idx_scalar_lolo = _mm_extract_epi32(idx_lolo, 1);
-			idx_scalar_lohi = _mm_extract_epi32(idx_lohi, 1);
-			idx_scalar_hilo = _mm_extract_epi32(idx_hilo, 1);
-			idx_scalar_hihi = _mm_extract_epi32(idx_hihi, 1);
+			idx_scalar_lolo = EXTRACT_ODD(idx_scalar_lolo, idx_lolo, 1);
+			idx_scalar_lohi = EXTRACT_ODD(idx_scalar_lohi, idx_lohi, 1);
+			idx_scalar_hilo = EXTRACT_ODD(idx_scalar_hilo, idx_hilo, 1);
+			idx_scalar_hihi = EXTRACT_ODD(idx_scalar_hihi, idx_hihi, 1);
 			result159d = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b,
 			                                    idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi,
 			                                    rtmp, gtmp, btmp);
@@ -439,25 +446,26 @@ public:
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(2, 2, 2, 2));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(2, 2, 2, 2));
 			btmp = _mm512_permute_ps(b, _MM_SHUFFLE(2, 2, 2, 2));
-			idx_scalar_lolo = _mm_extract_epi32(idx_lolo, 2);
-			idx_scalar_lohi = _mm_extract_epi32(idx_lohi, 2);
-			idx_scalar_hilo = _mm_extract_epi32(idx_hilo, 2);
-			idx_scalar_hihi = _mm_extract_epi32(idx_hihi, 2);
+			idx_scalar_lolo = EXTRACT_EVEN(idx_scalar_lolo, idx_lolo, 2);
+			idx_scalar_lohi = EXTRACT_EVEN(idx_scalar_lohi, idx_lohi, 2);
+			idx_scalar_hilo = EXTRACT_EVEN(idx_scalar_hilo, idx_hilo, 2);
+			idx_scalar_hihi = EXTRACT_EVEN(idx_scalar_hihi, idx_hihi, 2);
 			result26ae = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b,
-			                                    idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi,
+			                                    idx_scalar_lolo & 0xFFFFFFFFU, idx_scalar_lohi & 0xFFFFFFFFU, idx_scalar_hilo & 0xFFFFFFFFU, idx_scalar_hihi & 0xFFFFFFFFU,
 			                                    rtmp, gtmp, btmp);
 
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(3, 3, 3, 3));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(3, 3, 3, 3));
 			btmp = _mm512_permute_ps(b, _MM_SHUFFLE(3, 3, 3, 3));
-			idx_scalar_lolo = _mm_extract_epi32(idx_lolo, 3);
-			idx_scalar_lohi = _mm_extract_epi32(idx_lohi, 3);
-			idx_scalar_hilo = _mm_extract_epi32(idx_hilo, 3);
-			idx_scalar_hihi = _mm_extract_epi32(idx_hihi, 3);
+			idx_scalar_lolo = EXTRACT_ODD(idx_scalar_lolo, idx_lolo, 3);
+			idx_scalar_lohi = EXTRACT_ODD(idx_scalar_lohi, idx_lohi, 3);
+			idx_scalar_hilo = EXTRACT_ODD(idx_scalar_hilo, idx_hilo, 3);
+			idx_scalar_hihi = EXTRACT_ODD(idx_scalar_hihi, idx_hihi, 3);
 			result37bf = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b,
 			                                    idx_scalar_lolo, idx_scalar_lohi, idx_scalar_hilo, idx_scalar_hihi,
 			                                    rtmp, gtmp, btmp);
-
+#undef EXTRACT_ODD
+#undef EXTRACT_EVEN
 			lut3d_unpack_result(result048c, result159d, result26ae, result37bf, r, g, b);
 
 			if (i + 16 > width) {

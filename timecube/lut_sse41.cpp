@@ -367,7 +367,7 @@ public:
 			__m128 rtmp, gtmp, btmp;
 			__m128i idx;
 
-			uint32_t idx_scalar;
+			size_t idx_scalar;
 
 			// Input domain remapping.
 			r = _mm_add_ps(_mm_mul_ps(scale_r, r), offset_r);
@@ -391,29 +391,38 @@ public:
 			b = _mm_sub_ps(b, _mm_floor_ps(b));
 
 			// Interpolation.
+#if SIZE_MAX >= UINT64_MAX
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi64((x), (idx) / 2)
+  #define EXTRACT_ODD(out, x, idx) ((out) >> 32)
+#else
+  #define EXTRACT_EVEN(out, x, idx) _mm_extract_epi32((x), (idx))
+  #define EXTRACT_ODD(out, x, idx) _mm_extract_epi32((x), (idx))
+#endif
 			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(0, 0, 0, 0));
 			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(0, 0, 0, 0));
 			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(0, 0, 0, 0));
-			idx_scalar = _mm_extract_epi32(idx, 0);
-			result0 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
+			idx_scalar = EXTRACT_EVEN(idx_scalar, idx, 0);
+			result0 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar & 0xFFFFFFFFU, rtmp, gtmp, btmp);
 
 			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(1, 1, 1, 1));
 			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(1, 1, 1, 1));
 			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(1, 1, 1, 1));
-			idx_scalar = _mm_extract_epi32(idx, 1);
+			idx_scalar = EXTRACT_ODD(idx_scalar, idx, 1);
 			result1 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
 
 			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(2, 2, 2, 2));
 			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(2, 2, 2, 2));
 			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(2, 2, 2, 2));
-			idx_scalar = _mm_extract_epi32(idx, 2);
-			result2 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
+			idx_scalar = EXTRACT_EVEN(idx_scalar, idx, 2);
+			result2 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar & 0xFFFFFFFFU, rtmp, gtmp, btmp);
 
 			rtmp = _mm_shuffle_ps(r, r, _MM_SHUFFLE(3, 3, 3, 3));
 			gtmp = _mm_shuffle_ps(g, g, _MM_SHUFFLE(3, 3, 3, 3));
 			btmp = _mm_shuffle_ps(b, b, _MM_SHUFFLE(3, 3, 3, 3));
-			idx_scalar = _mm_extract_epi32(idx, 3);
+			idx_scalar = EXTRACT_ODD(idx_scalar, idx, 3);
 			result3 = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, idx_scalar, rtmp, gtmp, btmp);
+#undef EXTRACT_ODD
+#undef EXTRACT_EVEN
 
 			_MM_TRANSPOSE4_PS(result0, result1, result2, result3);
 			r = result0;
