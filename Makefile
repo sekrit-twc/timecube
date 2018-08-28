@@ -12,9 +12,9 @@ timecube_HDRS = \
 timecube_OBJS = \
 	timecube/cube.o \
 	timecube/lut.o \
-	timecube/lut_avx2.o \
-	timecube/lut_sse41.o \
-	timecube/lut_x86.o
+	timecube/x86/lut_avx2.o \
+	timecube/x86/lut_sse41.o \
+	timecube/x86/lut_x86.o
 
 vsxx_HDRS = \
 	vsxx/VapourSynth.h \
@@ -24,9 +24,9 @@ vsxx_HDRS = \
 	vsxx/vsxx_pluginmain.h
 
 ifeq ($(X86), 1)
-  timecube/lut_avx2.o: EXTRA_CXXFLAGS := -mf16c -mavx2 -mfma -march=haswell
-  timecube/lut_sse41.o: EXTRA_CXXFLAGS := -msse4.1
-  timecube/lut_avx512.o: EXTRA_CXXFLAGS := -mavx512f -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mtune=skylake-avx512
+  timecube/x86/lut_avx2.o: EXTRA_CXXFLAGS := -mf16c -mavx2 -mfma -march=haswell
+  timecube/x86/lut_sse41.o: EXTRA_CXXFLAGS := -msse4.1
+  timecube/x86/lut_avx512.o: EXTRA_CXXFLAGS := -mavx512f -mavx512cd -mavx512vl -mavx512bw -mavx512dq -mtune=skylake-avx512
   MY_CPPFLAGS := -DCUBE_X86 $(MY_CPPFLAGS)
 endif
 
@@ -39,7 +39,7 @@ vscube.so: vscube/vscube.o vsxx/vsxx_pluginmain.o $(timecube_OBJS)
 	$(CXX) -shared $(MY_LDFLAGS) $^ $(MY_LIBS) -o $@
 
 clean:
-	rm -f *.a *.o *.so benchmark/benchmark benchmark/*.o timecube/*.o vscube/*.o vsxx/*.o
+	rm -f *.a *.o *.so benchmark/benchmark benchmark/*.o timecube/*.o timecube/x86/*.o vscube/*.o vsxx/*.o
 
 %.o: %.cpp $(timecube_HDRS) $(vsxx_HDRS)
 	$(CXX) -c $(EXTRA_CXXFLAGS) $(MY_CXXFLAGS) $(MY_CPPFLAGS) $< -o $@

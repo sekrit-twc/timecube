@@ -8,7 +8,7 @@
 #include <vector>
 #include "cube.h"
 #include "lut.h"
-#include "lut_x86.h"
+#include "x86/lut_x86.h"
 
 namespace timecube {
 namespace {

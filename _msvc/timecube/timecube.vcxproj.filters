@@ -13,6 +13,12 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\x86">
+      <UniqueIdentifier>{84b66d35-d3ac-4905-be75-c8694d998c12}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\x86">
+      <UniqueIdentifier>{53f8a770-51d4-4cfa-9f2f-6594e36ae7ad}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\timecube\cube.h">
@@ -21,8 +27,8 @@
     <ClInclude Include="..\..\timecube\lut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\timecube\lut_x86.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\..\timecube\x86\lut_x86.h">
+      <Filter>Header Files\x86</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -32,17 +38,17 @@
     <ClCompile Include="..\..\timecube\lut.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_avx2.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\timecube\x86\lut_avx2.cpp">
+      <Filter>Source Files\x86</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_avx512.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\timecube\x86\lut_avx512.cpp">
+      <Filter>Source Files\x86</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_sse41.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\timecube\x86\lut_sse41.cpp">
+      <Filter>Source Files\x86</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_x86.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\timecube\x86\lut_x86.cpp">
+      <Filter>Source Files\x86</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

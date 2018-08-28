@@ -21,28 +21,15 @@
   <ItemGroup>
     <ClInclude Include="..\..\timecube\cube.h" />
     <ClInclude Include="..\..\timecube\lut.h" />
-    <ClInclude Include="..\..\timecube\lut_x86.h" />
+    <ClInclude Include="..\..\timecube\x86\lut_x86.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\timecube\cube.cpp" />
     <ClCompile Include="..\..\timecube\lut.cpp" />
-    <ClCompile Include="..\..\timecube\lut_avx2.cpp">
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
-    </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_avx512.cpp">
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/arch:AVX512</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/arch:AVX512</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/arch:AVX512</AdditionalOptions>
-      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/arch:AVX512</AdditionalOptions>
-    </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_sse41.cpp">
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
-    </ClCompile>
-    <ClCompile Include="..\..\timecube\lut_x86.cpp" />
+    <ClCompile Include="..\..\timecube\x86\lut_avx2.cpp" />
+    <ClCompile Include="..\..\timecube\x86\lut_avx512.cpp" />
+    <ClCompile Include="..\..\timecube\x86\lut_sse41.cpp" />
+    <ClCompile Include="..\..\timecube\x86\lut_x86.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -103,6 +90,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CUBE_X86;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -112,6 +100,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CUBE_X86;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -123,6 +112,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CUBE_X86;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -138,6 +128,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>CUBE_X86;_CRT_SECURE_NO_WARNINGS;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
