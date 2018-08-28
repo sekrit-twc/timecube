@@ -13,35 +13,35 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\vsxx">
+      <UniqueIdentifier>{84f3c27a-ab80-4f07-9653-8f70086922f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\vsxx">
+      <UniqueIdentifier>{27a19b50-703d-4bf3-8ddd-601f4d2e1c0f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cube.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\..\vsxx\VapourSynth.h">
+      <Filter>Header Files\vsxx</Filter>
     </ClInclude>
-    <ClInclude Include="lut.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\..\vsxx\VapourSynth++.hpp">
+      <Filter>Header Files\vsxx</Filter>
     </ClInclude>
-    <ClInclude Include="lut_x86.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\..\vsxx\VSHelper.h">
+      <Filter>Header Files\vsxx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\vsxx\VSScript.h">
+      <Filter>Header Files\vsxx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\vsxx\vsxx_pluginmain.h">
+      <Filter>Header Files\vsxx</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="cube.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\..\vsxx\vsxx_pluginmain.cpp">
+      <Filter>Source Files\vsxx</Filter>
     </ClCompile>
-    <ClCompile Include="lut.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lut_x86.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lut_avx2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lut_sse41.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lut_avx512.cpp">
+    <ClCompile Include="..\..\vscube\vscube.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
