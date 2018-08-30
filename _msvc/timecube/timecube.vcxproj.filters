@@ -30,6 +30,9 @@
     <ClInclude Include="..\..\timecube\x86\lut_x86.h">
       <Filter>Header Files\x86</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\timecube\timecube.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\timecube\cube.cpp">
@@ -49,6 +52,9 @@
     </ClCompile>
     <ClCompile Include="..\..\timecube\x86\lut_x86.cpp">
       <Filter>Source Files\x86</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\timecube\timecube.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

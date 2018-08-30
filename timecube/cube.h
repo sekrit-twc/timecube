@@ -6,10 +6,16 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "timecube.h"
+
+struct timecube_lut {
+protected:
+	~timecube_lut() = default;
+};
 
 namespace timecube {
 
-struct Cube {
+struct Cube : public ::timecube_lut {
 	std::string title;
 	std::vector<float> lut; // B in outer-most dimension, R in inner-most dimension.
 	uint_least32_t n;

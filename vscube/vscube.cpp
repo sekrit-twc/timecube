@@ -3,33 +3,38 @@
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
-#include "cube.h"
-#include "lut.h"
+#include "timecube.h"
 #include "vsxx_pluginmain.h"
 
 using namespace vsxx;
 
 namespace {
 
-timecube::PixelFormat vsformat_to_tcformat(const VSFormat &vsformat, const ConstPropertyMap &props)
-{
-	timecube::PixelFormat format{};
+struct TimecubeLutFree {
+	void operator()(timecube_lut *ptr) { timecube_lut_free(ptr); }
+};
 
+struct TimecubeFilterFree {
+	void operator()(timecube_filter *ptr) { timecube_filter_free(ptr); }
+};
+
+timecube_pixel_type_e vsformat_to_pixtype(const VSFormat &vsformat)
+{
 	if (vsformat.sampleType == stInteger && vsformat.bytesPerSample == 1)
-		format.type = timecube::PixelType::BYTE;
+		return TIMECUBE_PIXEL_BYTE;
 	else if (vsformat.sampleType == stInteger && vsformat.bytesPerSample == 2)
-		format.type = timecube::PixelType::WORD;
+		return TIMECUBE_PIXEL_WORD;
 	else if (vsformat.sampleType == stFloat && vsformat.bytesPerSample == 2)
-		format.type = timecube::PixelType::HALF;
+		return TIMECUBE_PIXEL_HALF;
 	else if (vsformat.sampleType == stFloat && vsformat.bytesPerSample == 4)
-		format.type = timecube::PixelType::FLOAT;
+		return TIMECUBE_PIXEL_FLOAT;
 	else
 		throw std::runtime_error{ "unknown pixel type" };
+}
 
-	format.depth = vsformat.bitsPerSample;
-	format.fullrange = props.get_prop<int>("_ColorRange", map::default_val(0)) == 0;
-
-	return format;
+timecube_pixel_range_e props_to_range(const ConstPropertyMap &props)
+{
+	return props.get_prop<int>("_ColorRange", map::default_val(0)) == 0 ? TIMECUBE_RANGE_FULL : TIMECUBE_RANGE_LIMITED;
 }
 
 template <class T>
@@ -44,84 +49,7 @@ T *increment(T *ptr, ptrdiff_t count)
 class TimeCube : public vsxx::FilterBase {
 	FilterNode m_clip;
 	::VSVideoInfo m_vi;
-	std::unique_ptr<timecube::Lut> m_lut;
-
-	void run_direct(const void * const src[3], void * const dst[3], const ptrdiff_t src_stride[3], const ptrdiff_t dst_stride[3], unsigned width, unsigned height) const
-	{
-		const float *src_p[3];
-		float *dst_p[3];
-
-		for (unsigned p = 0; p < 3; ++p) {
-			src_p[p] = static_cast<const float *>(src[p]);
-			dst_p[p] = static_cast<float *>(dst[p]);
-		}
-
-		for (unsigned i = 0; i < height; ++i) {
-			m_lut->process(src_p, dst_p, width);
-
-			for (unsigned p = 0; p < 3; ++p) {
-				src_p[p] = increment(src_p[p], src_stride[p]);
-				dst_p[p] = increment(dst_p[p], dst_stride[p]);
-			}
-		}
-	}
-
-	void run_indirect(const void * const src[3], void * const dst[3], const ptrdiff_t src_stride[3], const ptrdiff_t dst_stride[3],
-	                  const timecube::PixelFormat &format, unsigned width, unsigned height) const
-	{
-		std::unique_ptr<float, decltype(&vs_aligned_free)> tmp_buf{ nullptr, vs_aligned_free };
-		unsigned aligned_width = width % 8 ? (width - width % 8) + 8 : width;
-
-		const void *src_p[3] = { src[0], src[1], src[2] };
-		void *dst_p[3] = { dst[0], dst[1], dst[2] };
-		float *tmp[3] = { 0 };
-
-		tmp_buf.reset(vs_aligned_malloc<float>(aligned_width * 3 * sizeof(float), 64));
-		if (!tmp_buf)
-			throw std::bad_alloc{};
-
-		tmp[0] = tmp_buf.get();
-		tmp[1] = tmp_buf.get() + aligned_width;
-		tmp[2] = tmp_buf.get() + aligned_width * 2;
-
-		for (unsigned i = 0; i < height; ++i) {
-			m_lut->to_float(src_p, tmp, format, width);
-			m_lut->process(tmp, tmp, width);
-			m_lut->from_float(tmp, dst_p, format, width);
-
-			for (unsigned p = 0; p < 3; ++p) {
-				src_p[p] = increment(src_p[p], src_stride[p]);
-				dst_p[p] = increment(dst_p[p], dst_stride[p]);
-			}
-		}
-	}
-
-	void run(const ConstVideoFrame &src_frame, const VideoFrame &dst_frame, const timecube::PixelFormat &format, unsigned width, unsigned height) const
-	{
-		assert(static_cast<unsigned>(src_frame.width(0)) == width);
-		assert(static_cast<unsigned>(src_frame.height(0)) == height);
-		assert(static_cast<unsigned>(dst_frame.width(0)) == width);
-		assert(static_cast<unsigned>(dst_frame.height(0)) == height);
-
-		const void *src_p[3];
-		ptrdiff_t src_stride[3];
-
-		void *dst_p[3];
-		ptrdiff_t dst_stride[3];
-
-		for (unsigned p = 0; p < 3; ++p) {
-			src_p[p] = src_frame.read_ptr(p);
-			src_stride[p] = src_frame.stride(p);
-
-			dst_p[p] = dst_frame.write_ptr(p);
-			dst_stride[p] = dst_frame.stride(p);
-		}
-
-		if (format.type == timecube::PixelType::FLOAT)
-			run_direct(src_p, dst_p, src_stride, dst_stride, width, height);
-		else
-			run_indirect(src_p, dst_p, src_stride, dst_stride, format, width, height);
-	}
+	std::unique_ptr<timecube_filter, TimecubeFilterFree> m_filter;
 public:
 	explicit TimeCube(void *) {}
 
@@ -138,13 +66,20 @@ public:
 			throw std::runtime_error{ "more than 16-bit not supported" };
 
 		const char *path = in.get_prop<const char *>("cube");
-		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val<int64_t>(INT_MAX)));
+		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val<int64_t>(INT64_MAX)));
+		if (cpu < 0)
+			cpu = INT_MAX;
 
-		timecube::Cube cube = timecube::read_cube_from_file(path);
-		m_lut = timecube::create_lut_impl(cube, cpu);
+		std::unique_ptr<timecube_lut, TimecubeLutFree> lut{ timecube_lut_from_file(path) };
+		if (!lut)
+			throw std::runtime_error{ "error reading LUT from file" };
 
-		if (m_vi.format && m_vi.format->id == pfRGBH && !m_lut->supports_half())
-			throw std::runtime_error{ "RGBH not supported on current CPU" };
+		m_filter.reset(timecube_filter_create(lut.get(), static_cast<timecube_cpu_type_e>(cpu)));
+		if (!m_filter)
+			throw std::runtime_error{ "error creating LUT filter" };
+
+		if (m_vi.format && !timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(*m_vi.format)))
+			throw std::runtime_error{ "pixel type not supported" };
 
 		return{ fmParallel, 1 };
 	}
@@ -164,16 +99,59 @@ public:
 	{
 		ConstVideoFrame src_frame = m_clip.get_frame_filter(n, frame_ctx);
 		const VSFormat &src_format = src_frame.format();
+		unsigned width = src_frame.width(0);
+		unsigned height = src_frame.height(0);
 
 		if (src_format.colorFamily != cmRGB)
 			throw std::runtime_error{ "must be RGB" };
 
-		timecube::PixelFormat format = vsformat_to_tcformat(src_format, src_frame.frame_props_ro());
-		unsigned width = src_frame.width(0);
-		unsigned height = src_frame.height(0);
+		if (!timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(src_format)))
+			throw std::runtime_error{ "pixel type not supported" };
+
+		timecube_filter_params params{};
+		params.src_type = vsformat_to_pixtype(src_format);
+		params.src_depth = src_format.bitsPerSample;
+		params.src_range = props_to_range(src_frame.frame_props_ro());
+		params.dst_type = params.src_type;
+		params.dst_depth = params.src_depth;
+		params.dst_range = params.src_range;
+
+		timecube_filter_context ctx{};
+		if (timecube_filter_create_context(m_filter.get(), &params, &ctx))
+			throw std::runtime_error{ "error preparing filter" };
 
 		VideoFrame dst_frame = core.new_video_frame(src_format, width, height, src_frame);
-		run(src_frame, dst_frame, format, width, height);
+		std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{ nullptr, vs_aligned_free };
+
+		if (params.src_type != TIMECUBE_PIXEL_FLOAT || params.dst_type != TIMECUBE_PIXEL_FLOAT) {
+			size_t n = ((width + 15) & ~15) * sizeof(float) * 3;
+			tmp.reset(vs_aligned_malloc(n, 64));
+			if (!tmp)
+				throw std::runtime_error{ "error allocating buffer" };
+		}
+
+		const void *src_p[3];
+		ptrdiff_t src_stride[3];
+
+		void *dst_p[3];
+		ptrdiff_t dst_stride[3];
+
+		for (unsigned p = 0; p < 3; ++p) {
+			src_p[p] = src_frame.read_ptr(p);
+			src_stride[p] = src_frame.stride(p);
+
+			dst_p[p] = dst_frame.write_ptr(p);
+			dst_stride[p] = dst_frame.stride(p);
+		}
+
+		for (unsigned i = 0; i < height; ++i) {
+			timecube_filter_context_apply(&ctx, src_p, dst_p, tmp.get(), width);
+
+			for (unsigned p = 0; p < 3; ++p) {
+				src_p[p] = increment(src_p[p], src_stride[p]);
+				dst_p[p] = increment(dst_p[p], dst_stride[p]);
+			}
+		}
 
 		return dst_frame;
 	}

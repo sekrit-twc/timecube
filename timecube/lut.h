@@ -4,6 +4,12 @@
 #define TIMECUBE_LUT_H_
 
 #include <memory>
+#include "timecube.h"
+
+struct timecube_filter {
+protected:
+	~timecube_filter() = default;
+};
 
 namespace timecube {
 
@@ -22,7 +28,7 @@ struct PixelFormat {
 	bool fullrange;
 };
 
-class Lut {
+class Lut : public ::timecube_filter {
 public:
 	virtual void to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const;
 
