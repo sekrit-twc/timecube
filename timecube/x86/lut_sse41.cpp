@@ -316,7 +316,7 @@ public:
 				scale = static_cast<float>((1UL << format.depth) - 1);
 				offset = 0;
 			} else {
-				scale = static_cast<float>(1.0f / (219UL << (format.depth - 8)));
+				scale = static_cast<float>(219UL << (format.depth - 8));
 				offset = 16 << (format.depth - 8);
 			}
 
