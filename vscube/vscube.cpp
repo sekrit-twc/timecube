@@ -50,20 +50,35 @@ class TimeCube : public vsxx::FilterBase {
 	FilterNode m_clip;
 	::VSVideoInfo m_vi;
 	std::unique_ptr<timecube_filter, TimecubeFilterFree> m_filter;
+	timecube_pixel_range_e m_range;
+	bool m_use_range;
 public:
-	explicit TimeCube(void *) {}
+	explicit TimeCube(void *) : m_vi{}, m_range{}, m_use_range{} {}
 
 	const char *get_name(int) noexcept override { return "Cube"; }
 
 	std::pair<::VSFilterMode, int> init(const ConstPropertyMap &in, const PropertyMap &out, const VapourCore &core) override
 	{
 		m_clip = in.get_prop<FilterNode>("clip");
-		m_vi = m_clip.video_info();
+		::VSVideoInfo src_vi = m_clip.video_info();
 
-		if (m_vi.format && m_vi.format->colorFamily != cmRGB)
+		if (src_vi.format && src_vi.format->colorFamily != cmRGB)
 			throw std::runtime_error{ "must be RGB" };
-		if (m_vi.format && m_vi.format->sampleType == stInteger && m_vi.format->bitsPerSample > 16)
-			throw std::runtime_error{ "more than 16-bit not supported" };
+
+		m_vi = src_vi;
+		if (in.contains("format")) {
+			const ::VSFormat *format = core.format_preset(static_cast<::VSPresetFormat>(in.get_prop<int>("format")));
+			if (!format)
+				throw std::runtime_error{ "unregistered format" };
+			if (format->colorFamily != cmRGB)
+				throw std::runtime_error{ "must be RGB" };
+			m_vi.format = format;
+		}
+
+		if (in.contains("range")) {
+			m_range = static_cast<timecube_pixel_range_e>(in.get_prop<int>("range"));
+			m_use_range = true;
+		}
 
 		const char *path = in.get_prop<const char *>("cube");
 		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val<int64_t>(INT64_MAX)));
@@ -78,8 +93,10 @@ public:
 		if (!m_filter)
 			throw std::runtime_error{ "error creating LUT filter" };
 
+		if (src_vi.format && !timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(*src_vi.format)))
+			throw std::runtime_error{ "input pixel type not supported" };
 		if (m_vi.format && !timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(*m_vi.format)))
-			throw std::runtime_error{ "pixel type not supported" };
+			throw std::runtime_error{ "output pixel type not supported" };
 
 		return{ fmParallel, 1 };
 	}
@@ -112,15 +129,15 @@ public:
 		params.src_type = vsformat_to_pixtype(src_format);
 		params.src_depth = src_format.bitsPerSample;
 		params.src_range = props_to_range(src_frame.frame_props_ro());
-		params.dst_type = params.src_type;
-		params.dst_depth = params.src_depth;
-		params.dst_range = params.src_range;
+		params.dst_type = m_vi.format ? vsformat_to_pixtype(*m_vi.format) : params.src_type;
+		params.dst_depth = m_vi.format ? m_vi.format->bitsPerSample : params.src_depth;
+		params.dst_range = m_use_range ? m_range : params.src_range;
 
 		timecube_filter_context ctx{};
 		if (timecube_filter_create_context(m_filter.get(), &params, &ctx))
 			throw std::runtime_error{ "error preparing filter" };
 
-		VideoFrame dst_frame = core.new_video_frame(src_format, width, height, src_frame);
+		VideoFrame dst_frame = core.new_video_frame(m_vi.format ? *m_vi.format : src_format, width, height, src_frame);
 		std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{ nullptr, vs_aligned_free };
 
 		if (params.src_type != TIMECUBE_PIXEL_FLOAT || params.dst_type != TIMECUBE_PIXEL_FLOAT) {
@@ -159,6 +176,6 @@ public:
 
 const PluginInfo g_plugin_info{
 	"day.simultaneous.4", "timecube", "TimeCube 4D", {
-		{ &vsxx::FilterBase::filter_create<TimeCube>, "Cube", "clip:clip;cube:data;cpu:int:opt;" }
+		{ &vsxx::FilterBase::filter_create<TimeCube>, "Cube", "clip:clip;cube:data;format:int:opt;range:int:opt;cpu:int:opt;" }
 	}
 };
