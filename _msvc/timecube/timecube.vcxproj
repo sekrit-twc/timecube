@@ -28,9 +28,22 @@
     <ClCompile Include="..\..\timecube\cube.cpp" />
     <ClCompile Include="..\..\timecube\lut.cpp" />
     <ClCompile Include="..\..\timecube\timecube.cpp" />
-    <ClCompile Include="..\..\timecube\x86\lut_avx2.cpp" />
-    <ClCompile Include="..\..\timecube\x86\lut_avx512.cpp" />
-    <ClCompile Include="..\..\timecube\x86\lut_sse41.cpp" />
+    <ClCompile Include="..\..\timecube\x86\lut_avx2.cpp">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <ClCompile Include="..\..\timecube\x86\lut_avx512.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">/arch:AVX512</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">/arch:AVX512</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/arch:AVX512</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">/arch:AVX512</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="..\..\timecube\x86\lut_sse41.cpp">
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
     <ClCompile Include="..\..\timecube\x86\lut_x86.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
