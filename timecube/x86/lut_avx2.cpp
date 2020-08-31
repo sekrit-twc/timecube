@@ -125,7 +125,7 @@ void float_to_byte(const float *src, uint8_t *dst, float scale, float offset, un
 	}
 }
 
-void float_to_word(const float *src, uint16_t *dst, float scale, float offset, unsigned width)
+void float_to_word(const float *src, uint16_t *dst, unsigned depth, float scale, float offset, unsigned width)
 {
 	const __m256 scale_ps = _mm256_set1_ps(scale);
 	const __m256 offset_ps = _mm256_set1_ps(offset);
@@ -143,13 +143,14 @@ void float_to_word(const float *src, uint16_t *dst, float scale, float offset, u
 
 		x = _mm256_packus_epi32(x, y);
 		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
+		x = _mm256_max_epu16(x, _mm256_set1_epi16((1U << depth) - 1));
 
 		_mm256_store_si256((__m256i *)(dst + i), x);
 	}
 	for (unsigned i = width - width % 16; i < width; ++i) {
 		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
 		int y = _mm_cvt_ss2si(_mm_set_ss(x));
-		y = std::min(std::max(y, 0), static_cast<int>(UINT16_MAX));
+		y = std::min(std::max(y, 0), static_cast<int>((1U << depth) - 1));
 		dst[i] = static_cast<uint16_t>(y);
 	}
 }
@@ -342,9 +343,9 @@ public:
 				float_to_byte(src[1], static_cast<uint8_t *>(dst[1]), scale, offset, width);
 				float_to_byte(src[2], static_cast<uint8_t *>(dst[2]), scale, offset, width);
 			} else {
-				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), scale, offset, width);
-				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), scale, offset, width);
-				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), scale, offset, width);
+				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), format.depth, scale, offset, width);
+				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), format.depth, scale, offset, width);
+				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), format.depth, scale, offset, width);
 			}
 		} else if (format.type == PixelType::HALF) {
 			float_to_half(src[0], static_cast<uint16_t *>(dst[0]), width);

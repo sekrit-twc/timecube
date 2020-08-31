@@ -162,7 +162,7 @@ void float_to_byte(const float *src, uint8_t *dst, float scale, unsigned offset,
 	}
 }
 
-void float_to_word(const float *src, uint16_t *dst, float scale, unsigned offset, unsigned width)
+void float_to_word(const float *src, uint16_t *dst, unsigned depth, float scale, unsigned offset, unsigned width)
 {
 	__m128 scale_ps = _mm_set_ps1(scale);
 	__m128i offset_epu16 = _mm_set1_epi16(offset);
@@ -182,12 +182,13 @@ void float_to_word(const float *src, uint16_t *dst, float scale, unsigned offset
 
 		y = _mm_packus_epi32(lo, hi);
 		y = _mm_adds_epu16(y, offset_epu16);
+		y = _mm_min_epu16(y, _mm_set1_epi16((1U << depth) - 1));
 		_mm_store_si128((__m128i *)(dst + i), y);
 	}
 	for (unsigned i = width - width % 8; i < width; ++i) {
 		float x = src[i] * scale;
 		int y = _mm_cvt_ss2si(_mm_set_ss(x)) + offset;
-		y = std::min(std::max(y, 0), static_cast<int>(UINT16_MAX));
+		y = std::min(std::max(y, 0), static_cast<int>((1U << depth) - 1));
 		dst[i] = static_cast<uint16_t>(y);
 	}
 }
@@ -325,9 +326,9 @@ public:
 				float_to_byte(src[1], static_cast<uint8_t *>(dst[1]), scale, offset, width);
 				float_to_byte(src[2], static_cast<uint8_t *>(dst[2]), scale, offset, width);
 			} else {
-				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), scale, offset, width);
-				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), scale, offset, width);
-				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), scale, offset, width);
+				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), format.depth, scale, offset, width);
+				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), format.depth, scale, offset, width);
+				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), format.depth, scale, offset, width);
 			}
 		} else {
 			Lut::from_float(src, dst, format, width);

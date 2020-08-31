@@ -116,7 +116,7 @@ void float_to_byte(const float *src, uint8_t *dst, float scale, float offset, un
 	}
 }
 
-void float_to_word(const float *src, uint16_t *dst, float scale, float offset, unsigned width)
+void float_to_word(const float *src, uint16_t *dst, unsigned depth, float scale, float offset, unsigned width)
 {
 	const __m512 scale_ps = _mm512_set1_ps(scale);
 	const __m512 offset_ps = _mm512_set1_ps(offset);
@@ -128,12 +128,12 @@ void float_to_word(const float *src, uint16_t *dst, float scale, float offset, u
 		x = _mm512_load_ps(src + i);
 		x = _mm512_fmadd_ps(scale_ps, x, offset_ps);
 		xi = _mm512_cvtps_epi32(x);
-		_mm256_store_si256((__m256i *)(dst + i), _mm512_cvtusepi32_epi16(xi));
+		_mm256_store_si256((__m256i *)(dst + i), _mm256_min_epu16(_mm512_cvtusepi32_epi16(xi), _mm256_set1_epi16((1U << depth) - 1)));
 	}
 	for (unsigned i = width - width % 16; i < width; ++i) {
 		float x = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(src[i]), _mm_set_ss(scale), _mm_set_ss(offset)));
 		int y = _mm_cvt_ss2si(_mm_set_ss(x));
-		y = std::min(std::max(y, 0), static_cast<int>(UINT16_MAX));
+		y = std::min(std::max(y, 0), static_cast<int>((1U << depth) - 1));
 		dst[i] = static_cast<uint16_t>(y);
 	}
 }
@@ -336,9 +336,9 @@ public:
 				float_to_byte(src[1], static_cast<uint8_t *>(dst[1]), scale, offset, width);
 				float_to_byte(src[2], static_cast<uint8_t *>(dst[2]), scale, offset, width);
 			} else {
-				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), scale, offset, width);
-				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), scale, offset, width);
-				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), scale, offset, width);
+				float_to_word(src[0], static_cast<uint16_t *>(dst[0]), format.depth, scale, offset, width);
+				float_to_word(src[1], static_cast<uint16_t *>(dst[1]), format.depth, scale, offset, width);
+				float_to_word(src[2], static_cast<uint16_t *>(dst[2]), format.depth, scale, offset, width);
 			}
 		} else if (format.type == PixelType::HALF) {
 			float_to_half(src[0], static_cast<uint16_t *>(dst[0]), width);

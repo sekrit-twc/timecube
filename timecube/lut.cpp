@@ -45,10 +45,12 @@ template <class T>
 struct FromFloat {
 	float scale;
 	int offset;
+	unsigned maxval;
 
 	explicit FromFloat(const PixelFormat &format) :
 		scale{},
-		offset{}
+		offset{},
+		maxval{ (1U << format.depth) - 1 }
 	{
 		assert(format.type == PixelType::BYTE || format.type == PixelType::WORD);
 
@@ -65,7 +67,7 @@ struct FromFloat {
 	T operator()(float x)
 	{
 		long val = std::lrint(x * scale) + offset;
-		return static_cast<T>(std::min(std::max(val, 0L), static_cast<long>(std::numeric_limits<T>::max())));
+		return static_cast<T>(std::min(std::max(val, 0L), static_cast<long>(maxval)));
 	}
 };
 
