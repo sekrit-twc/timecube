@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 #include "cube.h"
 #include "lut.h"
