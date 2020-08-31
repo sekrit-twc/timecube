@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -36,7 +37,7 @@ struct ToFloat {
 
 	float operator()(T x)
 	{
-		return (x - offset) * scale;
+		return static_cast<long>(x - offset) * scale;
 	}
 };
 
@@ -63,7 +64,8 @@ struct FromFloat {
 
 	T operator()(float x)
 	{
-		return static_cast<T>(std::lrint(x * scale) + offset);
+		long val = std::lrint(x * scale) + static_cast<long>(offset);
+		return static_cast<T>(std::min(std::max(val, 0L), static_cast<long>(std::numeric_limits<T>::max())));
 	}
 };
 
