@@ -17,7 +17,7 @@ namespace {
 template <class T>
 struct ToFloat {
 	float scale;
-	unsigned offset;
+	int offset;
 
 	explicit ToFloat(const PixelFormat &format) :
 		scale{},
@@ -37,14 +37,14 @@ struct ToFloat {
 
 	float operator()(T x)
 	{
-		return static_cast<long>(x - offset) * scale;
+		return (static_cast<int32_t>(x) - offset) * scale;
 	}
 };
 
 template <class T>
 struct FromFloat {
 	float scale;
-	unsigned offset;
+	int offset;
 
 	explicit FromFloat(const PixelFormat &format) :
 		scale{},
@@ -64,7 +64,7 @@ struct FromFloat {
 
 	T operator()(float x)
 	{
-		long val = std::lrint(x * scale) + static_cast<long>(offset);
+		long val = std::lrint(x * scale) + offset;
 		return static_cast<T>(std::min(std::max(val, 0L), static_cast<long>(std::numeric_limits<T>::max())));
 	}
 };
