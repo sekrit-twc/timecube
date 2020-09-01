@@ -30,6 +30,8 @@ struct PixelFormat {
 
 class Lut : public ::timecube_filter {
 public:
+	virtual ~Lut() = default;
+
 	virtual void to_float(const void * const src[3], float * const dst[3], const PixelFormat &format, unsigned width) const;
 
 	virtual void from_float(const float * const src[3], void * const dst[3], const PixelFormat &format, unsigned width) const;
