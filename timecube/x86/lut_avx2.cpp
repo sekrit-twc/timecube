@@ -143,7 +143,7 @@ void float_to_word(const float *src, uint16_t *dst, unsigned depth, float scale,
 
 		x = _mm256_packus_epi32(x, y);
 		x = _mm256_permute4x64_epi64(x, _MM_SHUFFLE(3, 1, 2, 0));
-		x = _mm256_max_epu16(x, _mm256_set1_epi16((1U << depth) - 1));
+		x = _mm256_min_epu16(x, _mm256_set1_epi16((1U << depth) - 1));
 
 		_mm256_store_si256((__m256i *)(dst + i), x);
 	}
