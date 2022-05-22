@@ -21,28 +21,38 @@ enum {
 	SIMD_SSE42  = 1,
 	SIMD_AVX2   = 2,
 	SIMD_AVX512 = 3,
-	SIMD_MAX   = INT_MAX,
+	SIMD_MAX    = INT_MAX,
 };
 
 /**
  * Bitfield of selected x86 feature flags.
  */
 struct X86Capabilities {
-	unsigned sse      : 1;
-	unsigned sse2     : 1;
-	unsigned sse3     : 1;
-	unsigned ssse3    : 1;
-	unsigned fma      : 1;
-	unsigned sse41    : 1;
-	unsigned sse42    : 1;
-	unsigned avx      : 1;
-	unsigned f16c     : 1;
-	unsigned avx2     : 1;
-	unsigned avx512f  : 1;
-	unsigned avx512dq : 1;
-	unsigned avx512cd : 1;
-	unsigned avx512bw : 1;
-	unsigned avx512vl : 1;
+	unsigned sse                : 1;
+	unsigned sse2               : 1;
+	unsigned sse3               : 1;
+	unsigned ssse3              : 1;
+	unsigned fma                : 1;
+	unsigned sse41              : 1;
+	unsigned sse42              : 1;
+	unsigned avx                : 1;
+	unsigned f16c               : 1;
+	unsigned avx2               : 1;
+	unsigned avxvnni            : 1;
+	unsigned avx512f            : 1;
+	unsigned avx512dq           : 1;
+	unsigned avx512ifma         : 1;
+	unsigned avx512cd           : 1;
+	unsigned avx512bw           : 1;
+	unsigned avx512vl           : 1;
+	unsigned avx512vbmi         : 1;
+	unsigned avx512vbmi2        : 1;
+	unsigned avx512vnni         : 1;
+	unsigned avx512bitalg       : 1;
+	unsigned avx512vpopcntdq    : 1;
+	unsigned avx512vp2intersect : 1;
+	unsigned avx512fp16         : 1;
+	unsigned avx512bf16         : 1;
 };
 /**
  * Execute the CPUID instruction.
@@ -90,6 +100,8 @@ X86Capabilities query_x86_capabilities() noexcept
 	X86Capabilities caps = { 0 };
 	unsigned long long xcr0 = 0;
 	int regs[4] = { 0 };
+	int xmmymm = 0;
+	int zmm = 0;
 
 	do_cpuid(regs, 1, 0);
 	caps.sse      = !!(regs[3] & (1U << 25));
@@ -101,28 +113,45 @@ X86Capabilities query_x86_capabilities() noexcept
 	caps.sse42    = !!(regs[2] & (1U << 20));
 
 	// osxsave
-	if (regs[2] & (1U << 27))
+	if (regs[2] & (1U << 27)) {
 		xcr0 = do_xgetbv(0);
+		xmmymm = (xcr0 & 0x06) == 0x06;
+		zmm = (xcr0 & 0xE0) == 0xE0;
+	}
 
 	// XMM and YMM state.
-	if ((xcr0 & 0x06) != 0x06)
-		return caps;
-
-	caps.avx      = !!(regs[2] & (1U << 28));
-	caps.f16c     = !!(regs[2] & (1U << 29));
+	if (xmmymm) {
+		caps.avx  = !!(regs[2] & (1U << 28));
+		caps.f16c = !!(regs[2] & (1U << 29));
+	}
 
 	do_cpuid(regs, 7, 0);
-	caps.avx2     = !!(regs[1] & (1U << 5));
+	if (xmmymm) {
+		caps.avx2 = !!(regs[1] & (1U << 5));
+	}
 
 	// ZMM state.
-	if ((xcr0 & 0xE0) != 0xE0)
-		return caps;
+	if (zmm) {
+		caps.avx512f            = !!(regs[1] & (1U << 16));
+		caps.avx512dq           = !!(regs[1] & (1U << 17));
+		caps.avx512ifma         = !!(regs[1] & (1U << 21));
+		caps.avx512cd           = !!(regs[1] & (1U << 28));
+		caps.avx512bw           = !!(regs[1] & (1U << 30));
+		caps.avx512vl           = !!(regs[1] & (1U << 31));
+		caps.avx512vbmi         = !!(regs[2] & (1U << 1));
+		caps.avx512vbmi2        = !!(regs[2] & (1U << 6));
+		caps.avx512vnni         = !!(regs[2] & (1U << 11));
+		caps.avx512bitalg       = !!(regs[2] & (1U << 12));
+		caps.avx512vpopcntdq    = !!(regs[2] & (1U << 14));
+		caps.avx512vp2intersect = !!(regs[3] & (1U << 8));
+		caps.avx512fp16         = !!(regs[3] & (1U << 23));
+	}
 
-	caps.avx512f  = !!(regs[1] & (1U << 16));
-	caps.avx512dq = !!(regs[1] & (1U << 17));
-	caps.avx512cd = !!(regs[1] & (1U << 28));
-	caps.avx512bw = !!(regs[1] & (1U << 30));
-	caps.avx512vl = !!(regs[1] & (1U << 31));
+	do_cpuid(regs, 7, 1);
+	if (zmm) {
+		caps.avxvnni            = !!(regs[0] & (1U << 4));
+		caps.avx512bf16         = !!(regs[0] & (1U << 5));
+	}
 
 	return caps;
 }
