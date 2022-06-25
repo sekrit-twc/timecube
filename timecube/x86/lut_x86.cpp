@@ -8,6 +8,7 @@
   #include <cpuid.h>
 #endif
 
+#include <graphengine/filter.h>
 #include "cube.h"
 #include "lut.h"
 #include "lut_x86.h"
@@ -156,20 +157,131 @@ X86Capabilities query_x86_capabilities() noexcept
 	return caps;
 }
 
+
+pixel_io_func select_from_float_func_sse41(PixelType to)
+{
+	switch (to) {
+	case PixelType::BYTE:
+		return float_to_byte_sse41;
+	case PixelType::WORD:
+		return float_to_word_sse41;
+	default:
+		return nullptr;
+	}
+}
+
+pixel_io_func select_from_float_func_avx2(PixelType to)
+{
+	switch (to) {
+	case PixelType::BYTE:
+		return float_to_byte_avx2;
+	case PixelType::WORD:
+		return float_to_word_avx2;
+	case PixelType::HALF:
+		return float_to_half_avx2;
+	default:
+		return nullptr;
+	}
+}
+
+pixel_io_func select_from_float_func_avx512(PixelType to)
+{
+	switch (to) {
+	case PixelType::BYTE:
+		return float_to_byte_avx512;
+	case PixelType::WORD:
+		return float_to_word_avx512;
+	case PixelType::HALF:
+		return float_to_half_avx512;
+	default:
+		return nullptr;
+	}
+}
+
+pixel_io_func select_to_float_func_sse41(PixelType from)
+{
+	switch (from) {
+	case PixelType::BYTE:
+		return byte_to_float_sse41;
+	case PixelType::WORD:
+		return word_to_float_sse41;
+	default:
+		return nullptr;
+	}
+}
+
+pixel_io_func select_to_float_func_avx2(PixelType from)
+{
+	switch (from) {
+	case PixelType::BYTE:
+		return byte_to_float_avx2;
+	case PixelType::WORD:
+		return word_to_float_avx2;
+	case PixelType::HALF:
+		return half_to_float_avx2;
+	default:
+		return nullptr;
+	}
+}
+
+pixel_io_func select_to_float_func_avx512(PixelType from)
+{
+	switch (from) {
+	case PixelType::BYTE:
+		return byte_to_float_avx512;
+	case PixelType::WORD:
+		return word_to_float_avx512;
+	case PixelType::HALF:
+		return half_to_float_avx512;
+	default:
+		return nullptr;
+	}
+}
+
 } // namespace
 
 
-std::unique_ptr<Lut> create_lut_impl_x86(const Cube &cube, int simd)
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_x86(const Cube &cube, unsigned width, unsigned height, int simd)
 {
 	X86Capabilities caps = query_x86_capabilities();
-	std::unique_ptr<Lut> ret;
+	std::unique_ptr<graphengine::Filter> ret;
 
 	if (!ret && simd >= SIMD_AVX512 && caps.avx512f && caps.avx512bw && caps.avx512dq && caps.avx512vl)
-		ret = create_lut_impl_avx512(cube);
+		ret = create_lut3d_impl_avx512(cube, width, height);
 	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
-		ret = create_lut_impl_avx2(cube);
+		ret = create_lut3d_impl_avx2(cube, width, height);
 	if (!ret && simd >= SIMD_SSE42 && caps.sse41)
-		ret = create_lut_impl_sse41(cube);
+		ret = create_lut3d_impl_sse41(cube, width, height);
+
+	return ret;
+}
+
+pixel_io_func select_from_float_func_x86(PixelType to, int simd)
+{
+	X86Capabilities caps = query_x86_capabilities();
+	pixel_io_func ret = nullptr;
+
+	if (!ret && simd >= SIMD_AVX512 && caps.avx512f && caps.avx512bw && caps.avx512dq && caps.avx512vl)
+		ret = select_from_float_func_avx512(to);
+	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
+		ret = select_from_float_func_avx2(to);
+	if (!ret && simd >= SIMD_SSE42 && caps.sse41)
+		ret = select_from_float_func_sse41(to);
+
+	return ret;
+}
+
+pixel_io_func select_to_float_func_x86(PixelType from, int simd)
+{
+	X86Capabilities caps = query_x86_capabilities();
+	pixel_io_func ret = nullptr;
+
+	if (!ret && simd >= SIMD_AVX512 && caps.avx512f && caps.avx512bw && caps.avx512dq && caps.avx512vl)
+		ret = select_to_float_func_avx512(from);
+	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
+		ret = select_to_float_func_avx2(from);
+	if (!ret && simd >= SIMD_SSE42 && caps.sse41)
+		ret = select_to_float_func_sse41(from);
 
 	return ret;
 }

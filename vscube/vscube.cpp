@@ -50,19 +50,19 @@ class TimeCube : public vsxx::FilterBase {
 	FilterNode m_clip;
 	::VSVideoInfo m_vi;
 	std::unique_ptr<timecube_filter, TimecubeFilterFree> m_filter;
-	timecube_pixel_range_e m_range;
-	bool m_use_range;
 public:
-	explicit TimeCube(void *) : m_vi{}, m_range{}, m_use_range{} {}
+	explicit TimeCube(void *) : m_vi{} {}
 
 	const char *get_name(int) noexcept override { return "Cube"; }
 
 	std::pair<::VSFilterMode, int> init(const ConstPropertyMap &in, const PropertyMap &out, const VapourCore &core) override
 	{
 		m_clip = in.get_prop<FilterNode>("clip");
-		::VSVideoInfo src_vi = m_clip.video_info();
 
-		if (src_vi.format && src_vi.format->colorFamily != cmRGB)
+		::VSVideoInfo src_vi = m_clip.video_info();
+		if (!isConstantFormat(&src_vi))
+			throw std::runtime_error{ "must be constant format" };
+		if (src_vi.format->colorFamily != cmRGB)
 			throw std::runtime_error{ "must be RGB" };
 
 		m_vi = src_vi;
@@ -75,13 +75,8 @@ public:
 			m_vi.format = format;
 		}
 
-		if (in.contains("range")) {
-			m_range = static_cast<timecube_pixel_range_e>(in.get_prop<int>("range"));
-			m_use_range = true;
-		}
-
 		const char *path = in.get_prop<const char *>("cube");
-		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val<int64_t>(INT64_MAX)));
+		int cpu = int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val(INT64_MAX)));
 		if (cpu < 0)
 			cpu = INT_MAX;
 
@@ -89,14 +84,19 @@ public:
 		if (!lut)
 			throw std::runtime_error{ "error reading LUT from file" };
 
-		m_filter.reset(timecube_filter_create(lut.get(), static_cast<timecube_cpu_type_e>(cpu)));
+		timecube_filter_params params{};
+		timecube_pixel_range_e range = static_cast<timecube_pixel_range_e>(
+			in.get_prop<int>("range", map::default_val(static_cast<int>(TIMECUBE_RANGE_FULL))));
+		params.src_type = vsformat_to_pixtype(*src_vi.format);
+		params.src_depth = src_vi.format->bitsPerSample;
+		params.src_range = range;
+		params.dst_type = vsformat_to_pixtype(*m_vi.format);
+		params.dst_depth = m_vi.format->bitsPerSample;
+		params.src_range = range;
+
+		m_filter.reset(timecube_filter_create(lut.get(), &params, m_vi.width, m_vi.height, static_cast<timecube_cpu_type_e>(cpu)));
 		if (!m_filter)
 			throw std::runtime_error{ "error creating LUT filter" };
-
-		if (src_vi.format && !timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(*src_vi.format)))
-			throw std::runtime_error{ "input pixel type not supported" };
-		if (m_vi.format && !timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(*m_vi.format)))
-			throw std::runtime_error{ "output pixel type not supported" };
 
 		return{ fmParallel, 1 };
 	}
@@ -119,57 +119,24 @@ public:
 		unsigned width = src_frame.width(0);
 		unsigned height = src_frame.height(0);
 
-		if (src_format.colorFamily != cmRGB)
-			throw std::runtime_error{ "must be RGB" };
-
-		if (!timecube_filter_supports_type(m_filter.get(), vsformat_to_pixtype(src_format)))
-			throw std::runtime_error{ "pixel type not supported" };
-
-		timecube_filter_params params{};
-		params.src_type = vsformat_to_pixtype(src_format);
-		params.src_depth = src_format.bitsPerSample;
-		params.src_range = props_to_range(src_frame.frame_props_ro());
-		params.dst_type = m_vi.format ? vsformat_to_pixtype(*m_vi.format) : params.src_type;
-		params.dst_depth = m_vi.format ? m_vi.format->bitsPerSample : params.src_depth;
-		params.dst_range = m_use_range ? m_range : params.src_range;
-
-		timecube_filter_context ctx{};
-		if (timecube_filter_create_context(m_filter.get(), &params, &ctx))
-			throw std::runtime_error{ "error preparing filter" };
-
 		VideoFrame dst_frame = core.new_video_frame(m_vi.format ? *m_vi.format : src_format, width, height, src_frame);
 		std::unique_ptr<void, decltype(&vs_aligned_free)> tmp{ nullptr, vs_aligned_free };
 
-		if (params.src_type != TIMECUBE_PIXEL_FLOAT || params.dst_type != TIMECUBE_PIXEL_FLOAT) {
-			size_t n = ((width + 15) & ~15) * sizeof(float) * 3;
-			tmp.reset(vs_aligned_malloc(n, 64));
-			if (!tmp)
-				throw std::runtime_error{ "error allocating buffer" };
-		}
-
-		const void *src_p[3];
+		const void *srcp[3];
 		ptrdiff_t src_stride[3];
-
-		void *dst_p[3];
+		void *dstp[3];
 		ptrdiff_t dst_stride[3];
 
 		for (unsigned p = 0; p < 3; ++p) {
-			src_p[p] = src_frame.read_ptr(p);
+			srcp[p] = src_frame.read_ptr(p);
 			src_stride[p] = src_frame.stride(p);
 
-			dst_p[p] = dst_frame.write_ptr(p);
+			dstp[p] = dst_frame.write_ptr(p);
 			dst_stride[p] = dst_frame.stride(p);
 		}
 
-		for (unsigned i = 0; i < height; ++i) {
-			timecube_filter_context_apply(&ctx, src_p, dst_p, tmp.get(), width);
-
-			for (unsigned p = 0; p < 3; ++p) {
-				src_p[p] = increment(src_p[p], src_stride[p]);
-				dst_p[p] = increment(dst_p[p], dst_stride[p]);
-			}
-		}
-
+		tmp.reset(vs_aligned_malloc(timecube_filter_get_tmp_size(m_filter.get()), 64));
+		timecube_filter_apply(m_filter.get(), srcp, src_stride, dstp, dst_stride, tmp.get());
 		return dst_frame;
 	}
 };

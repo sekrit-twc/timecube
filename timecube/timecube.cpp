@@ -3,6 +3,8 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <graphengine/graph.h>
+#include <graphengine/filter.h>
 #include "cube.h"
 #include "lut.h"
 #include "timecube.h"
@@ -11,18 +13,16 @@
   #include <Windows.h>
 #endif
 
+struct timecube_filter {
+protected:
+	~timecube_filter() = default;
+};
+
 namespace {
 
 struct FileCloser {
 	void operator()(std::FILE *file) const { std::fclose(file); }
 };
-
-struct LutParams {
-	const timecube::Lut *lut;
-	timecube::PixelFormat src_fmt;
-	timecube::PixelFormat dst_fmt;
-};
-static_assert(sizeof(LutParams) < sizeof(timecube_filter_context), "context too small");
 
 #ifdef _WIN32
 std::wstring utf8_to_utf16(const std::string &s)
@@ -40,6 +40,75 @@ std::wstring utf8_to_utf16(const std::string &s)
 	return us;
 }
 #endif
+
+
+class TimecubeFilterGraph : public timecube_filter {
+	std::vector<std::unique_ptr<graphengine::Filter>> m_filters;
+	graphengine::GraphImpl m_graph;
+	graphengine::node_id m_source_id = graphengine::null_node;
+	graphengine::node_id m_sink_id = graphengine::null_node;
+public:
+	TimecubeFilterGraph(const timecube::Cube &cube, unsigned width, unsigned height, const timecube::PixelFormat &src_format, const timecube::PixelFormat &dst_format, int cpu)
+	{
+		graphengine::PlaneDescriptor format[3];
+		std::fill_n(format, 3, graphengine::PlaneDescriptor{ width, height, timecube::pixel_size(src_format.type) });
+		m_source_id = m_graph.add_source(3, format);
+
+		graphengine::node_dep_desc ids[3] = { { m_source_id, 0 }, { m_source_id, 1 }, { m_source_id, 2 } };
+
+		if (src_format.type != timecube::PixelType::FLOAT) {
+			std::unique_ptr<graphengine::Filter> to_float_filter = timecube::create_to_float_impl(width, height, src_format, cpu);
+			ids[0] = { m_graph.add_transform(to_float_filter.get(), &ids[0]), 0 };
+			ids[1] = { m_graph.add_transform(to_float_filter.get(), &ids[1]), 0 };
+			ids[2] = { m_graph.add_transform(to_float_filter.get(), &ids[2]), 0 };
+			m_filters.push_back(std::move(to_float_filter));
+		}
+
+		if (cube.is_3d) {
+			std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut3d_impl(cube, width, height, cpu);
+			graphengine::node_id id = m_graph.add_transform(lut_filter.get(), ids);
+			ids[0] = { id, 0 };
+			ids[1] = { id, 1 };
+			ids[2] = { id, 2 };
+			m_filters.push_back(std::move(lut_filter));
+		} else {
+			for (unsigned p = 0; p < 3; ++p) {
+				std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut1d_impl(cube, width, height, p, cpu);
+				ids[p] = { m_graph.add_transform(lut_filter.get(), &ids[p]), 0 };
+				m_filters.push_back(std::move(lut_filter));
+			}
+		}
+
+		if (dst_format.type != timecube::PixelType::FLOAT) {
+			std::unique_ptr<graphengine::Filter> from_float_filter = timecube::create_from_float_impl(width, height, dst_format, cpu);
+			ids[0] = { m_graph.add_transform(from_float_filter.get(), &ids[0]), 0 };
+			ids[1] = { m_graph.add_transform(from_float_filter.get(), &ids[1]), 0 };
+			ids[2] = { m_graph.add_transform(from_float_filter.get(), &ids[2]), 0 };
+			m_filters.push_back(std::move(from_float_filter));
+		}
+
+		m_sink_id = m_graph.add_sink(3, ids);
+	}
+
+	size_t get_tmp_size() const { return m_graph.get_tmp_size(false); }
+
+	void apply(const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp) const
+	{
+		graphengine::Graph::EndpointConfiguration endpoints{};
+
+		endpoints[0].id = m_source_id;
+		endpoints[0].buffer[0] = { const_cast<void *>(src[0]), src_stride[0], graphengine::BUFFER_MAX };
+		endpoints[0].buffer[1] = { const_cast<void *>(src[1]), src_stride[1], graphengine::BUFFER_MAX };
+		endpoints[0].buffer[2] = { const_cast<void *>(src[2]), src_stride[2], graphengine::BUFFER_MAX };
+
+		endpoints[1].id = m_sink_id;
+		endpoints[1].buffer[0] = { dst[0], dst_stride[0], graphengine::BUFFER_MAX };
+		endpoints[1].buffer[1] = { dst[1], dst_stride[1], graphengine::BUFFER_MAX };
+		endpoints[1].buffer[2] = { dst[2], dst_stride[2], graphengine::BUFFER_MAX };
+
+		m_graph.run(endpoints, tmp);
+	}
+};
 
 } // namespace
 
@@ -130,88 +199,29 @@ void timecube_lut_free(timecube_lut *ptr)
 	delete static_cast<timecube::Cube *>(ptr);
 }
 
-timecube_filter *timecube_filter_create(const timecube_lut *lut, timecube_cpu_type_e cpu) try
+timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params, unsigned width, unsigned height, timecube_cpu_type_e cpu) try
 {
 	const timecube::Cube *cube = static_cast<const timecube::Cube *>(lut);
-	std::unique_ptr<timecube::Lut> ptr = timecube::create_lut_impl(*cube, cpu);
-	return ptr.release();
+	timecube::PixelFormat src_format{ static_cast<timecube::PixelType>(params->src_type), params->src_depth, params->src_range == TIMECUBE_RANGE_FULL };
+	timecube::PixelFormat dst_format{ static_cast<timecube::PixelType>(params->dst_type), params->dst_depth, params->dst_range == TIMECUBE_RANGE_FULL };
+
+	std::unique_ptr<TimecubeFilterGraph> filter = std::make_unique<TimecubeFilterGraph>(*cube, width, height, src_format, dst_format, cpu);
+	return filter.release();
 } catch (...) {
 	return nullptr;
 }
 
-int timecube_filter_supports_type(const timecube_filter *ptr, timecube_pixel_type_e type)
+size_t timecube_filter_get_tmp_size(const timecube_filter *filter) noexcept
 {
-	const timecube::Lut *lut = static_cast<const timecube::Lut *>(ptr);
-	return type == TIMECUBE_PIXEL_HALF ? lut->supports_half() : 1;
+	return static_cast<const TimecubeFilterGraph *>(filter)->get_tmp_size();
 }
 
-int timecube_filter_create_context(const timecube_filter *ptr, const timecube_filter_params *params, timecube_filter_context *ctx)
+void timecube_filter_apply(const timecube_filter *filter, const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp) noexcept
 {
-	if (params->src_type == TIMECUBE_PIXEL_BYTE && params->src_depth > 8)
-		return 1;
-	if (params->src_type == TIMECUBE_PIXEL_WORD && params->src_depth > 16)
-		return 1;
-	if (params->dst_type == TIMECUBE_PIXEL_BYTE && params->dst_depth > 8)
-		return 1;
-	if (params->dst_type == TIMECUBE_PIXEL_WORD && params->dst_depth > 16)
-		return 1;
-	if (params->src_type < 0 || params->dst_type < 0)
-		return 1;
-	if (params->src_type > TIMECUBE_PIXEL_FLOAT || params->dst_type > TIMECUBE_PIXEL_FLOAT)
-		return 1;
-
-	const timecube::Lut *lut = static_cast<const timecube::Lut *>(ptr);
-	LutParams *p = new (ctx->u.buf) LutParams{};
-	p->lut = lut;
-	p->src_fmt.type = static_cast<timecube::PixelType>(params->src_type);
-	p->src_fmt.fullrange = params->src_range == TIMECUBE_RANGE_FULL;
-	p->src_fmt.depth = params->src_depth;
-	p->dst_fmt.type = static_cast<timecube::PixelType>(params->dst_type);
-	p->dst_fmt.fullrange = params->dst_range == TIMECUBE_RANGE_FULL;
-	p->dst_fmt.depth = params->dst_depth;
-	return 0;
-}
-
-void timecube_filter_context_apply(const timecube_filter_context *ctx, const void * const src[3], void * const dst[3], void *tmp, unsigned n) try
-{
-	const LutParams *p = reinterpret_cast<const LutParams *>(ctx->u.buf);
-	const timecube::Lut *lut = p->lut;
-	unsigned n_aligned = (n + 15) & ~15;
-	float *src_f[3];
-	float *dst_f[3];
-
-	if (p->src_fmt.type == timecube::PixelType::FLOAT) {
-		src_f[0] = const_cast<float *>(static_cast<const float *>(src[0]));
-		src_f[1] = const_cast<float *>(static_cast<const float *>(src[1]));
-		src_f[2] = const_cast<float *>(static_cast<const float *>(src[2]));
-	} else {
-		src_f[0] = static_cast<float *>(tmp) + 0 * n_aligned;
-		src_f[1] = static_cast<float *>(tmp) + 1 * n_aligned;
-		src_f[2] = static_cast<float *>(tmp) + 2 * n_aligned;
-	}
-
-	if (p->dst_fmt.type == timecube::PixelType::FLOAT) {
-		dst_f[0] = const_cast<float *>(static_cast<const float *>(dst[0]));
-		dst_f[1] = const_cast<float *>(static_cast<const float *>(dst[1]));
-		dst_f[2] = const_cast<float *>(static_cast<const float *>(dst[2]));
-	} else {
-		dst_f[0] = static_cast<float *>(tmp) + 0 * n_aligned;
-		dst_f[1] = static_cast<float *>(tmp) + 1 * n_aligned;
-		dst_f[2] = static_cast<float *>(tmp) + 2 * n_aligned;
-	}
-
-	if (p->src_fmt.type != timecube::PixelType::FLOAT)
-		lut->to_float(src, src_f, p->src_fmt, n);
-
-	lut->process(src_f, dst_f, n);
-
-	if (p->dst_fmt.type != timecube::PixelType::FLOAT)
-		lut->from_float(dst_f, dst, p->dst_fmt, n);
-} catch (...) {
-		// ...
+	static_cast<const TimecubeFilterGraph *>(filter)->apply(src, src_stride, dst, dst_stride, tmp);
 }
 
 void timecube_filter_free(timecube_filter *ptr)
 {
-	delete static_cast<timecube::Lut *>(ptr);
+	delete static_cast<TimecubeFilterGraph *>(ptr);
 }

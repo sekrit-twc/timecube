@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26430.13
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32616.157
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "timecube", "timecube\timecube.vcxproj", "{6DABDC20-8E04-4A1C-B540-7B870A0508CE}"
 EndProject
@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "benchmark", "benchmark\benc
 	ProjectSection(ProjectDependencies) = postProject
 		{6DABDC20-8E04-4A1C-B540-7B870A0508CE} = {6DABDC20-8E04-4A1C-B540-7B870A0508CE}
 	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "graphengine_srcs", "..\graphengine\_msvc\graphengine_srcs\graphengine_srcs.vcxitems", "{E6991282-4AD2-4CC1-8DA5-5B44D2053A3C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -66,5 +68,9 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {CB44E120-EF5B-49F7-9E25-D1434FF47C14}
+	EndGlobalSection
+	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		..\graphengine\_msvc\graphengine_srcs\graphengine_srcs.vcxitems*{6dabdc20-8e04-4a1c-b540-7b870a0508ce}*SharedItemsImports = 4
+		..\graphengine\_msvc\graphengine_srcs\graphengine_srcs.vcxitems*{e6991282-4ad2-4cc1-8da5-5b44d2053a3c}*SharedItemsImports = 9
 	EndGlobalSection
 EndGlobal

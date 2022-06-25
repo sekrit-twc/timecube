@@ -1,6 +1,7 @@
 #include <exception>
 #include <iostream>
 #include <string>
+#include <graphengine/filter.h>
 #include "cube.h"
 #include "lut.h"
 
@@ -21,7 +22,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	std::unique_ptr<timecube::Lut> lut;
+	std::unique_ptr<graphengine::Filter> lut[3];
 	alignas(64) float x = 0.0f;
 	alignas(64) float y = 0.0f;
 	alignas(64) float z = 0.0f;
@@ -46,18 +47,36 @@ int main(int argc, char **argv)
 		std::cout << "first entry: " << cube.lut[0] << ' ' << cube.lut[1] << ' ' << cube.lut[2] << '\n';
 		std::cout << "last entry: " << cube.lut[cube.lut.size() - 3] << ' ' << cube.lut[cube.lut.size() - 2] << ' ' << cube.lut[cube.lut.size() - 1] << '\n';
 
-		if (!(lut = timecube::create_lut_impl(cube, simd)))
-			throw std::runtime_error{ "failed to create LUT implementation" };
+		if (cube.is_3d) {
+			if (!(lut[0] = timecube::create_lut3d_impl(cube, 1, 1, simd)))
+				throw std::runtime_error{ "failed to create LUT implementation" };
+		} else {
+			if (!(lut[0] = timecube::create_lut1d_impl(cube, 1, 1, 0, simd)))
+				throw std::runtime_error{ "failed to create LUT implementation" };
+			if (!(lut[1] = timecube::create_lut1d_impl(cube, 1, 1, 1, simd)))
+				throw std::runtime_error{ "failed to create LUT implementation" };
+			if (!(lut[2] = timecube::create_lut1d_impl(cube, 1, 1, 2, simd)))
+				throw std::runtime_error{ "failed to create LUT implementation" };
+		}
 	} catch (const std::exception &e) {
 		std::cerr << "failed to load CUBE: " << e.what() << '\n';
 		return 1;
 	}
 
 	try {
-		const float *src[3] = { &x, &y, &z };
-		float *dst[3] = { &x, &y, &z };
+		graphengine::BufferDescriptor buffer[3] = {
+			{ &x, 64, graphengine::BUFFER_MAX },
+			{ &y, 64, graphengine::BUFFER_MAX },
+			{ &z, 64, graphengine::BUFFER_MAX },
+		};
 
-		lut->process(src, dst, 1);
+		if (!lut[1] /* is_3d */) {
+			lut[0]->process(buffer, buffer, 0, 0, 1, nullptr, nullptr);
+		} else {
+			lut[0]->process(&buffer[0], &buffer[0], 0, 0, 1, nullptr, nullptr);
+			lut[1]->process(&buffer[1], &buffer[1], 0, 0, 1, nullptr, nullptr);
+			lut[2]->process(&buffer[2], &buffer[2], 0, 0, 1, nullptr, nullptr);
+		}
 		std::cout << "result: (" << x << ", " << y << ", " << z << ")\n";
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';

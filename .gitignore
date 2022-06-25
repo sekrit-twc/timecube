@@ -5,6 +5,7 @@ benchmarkapp
 
 *.opendb
 *.db
+*.user
 .vs
 x64
 Debug

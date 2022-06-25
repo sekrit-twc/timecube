@@ -66,20 +66,11 @@ typedef struct timecube_filter_params {
 	unsigned dst_depth;
 } timecube_filter_params;
 
-typedef struct timecube_filter_context {
-	union {
-		void *d;
-		unsigned char buf[64];
-	} u;
-} timecube_filter_context;
+timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params, unsigned width, unsigned height, timecube_cpu_type_e cpu);
 
-timecube_filter *timecube_filter_create(const timecube_lut *lut, timecube_cpu_type_e cpu);
+size_t timecube_filter_get_tmp_size(const timecube_filter *filter);
 
-int timecube_filter_supports_type(const timecube_filter *ptr, timecube_pixel_type_e type);
-
-int timecube_filter_create_context(const timecube_filter *ptr, const timecube_filter_params *params, timecube_filter_context *ctx);
-
-void timecube_filter_context_apply(const timecube_filter_context *ctx, const void * const src[3], void * const dst[3], void *tmp, unsigned n);
+void timecube_filter_apply(const timecube_filter *filter, const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp);
 
 void timecube_filter_free(timecube_filter *ptr);
 

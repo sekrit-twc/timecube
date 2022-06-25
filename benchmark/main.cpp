@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <graphengine/filter.h>
 #include "cube.h"
 #include "lut.h"
 
@@ -37,25 +38,27 @@ int main(int argc, char **argv)
 	cube.is_3d = true;
 	cube.n = 2;
 
-	std::unique_ptr<timecube::Lut> lut;
+	std::unique_ptr<graphengine::Filter> lut;
+	alignas(64) float r[1024] = { 0 };
+	alignas(64) float g[1024] = { 0 };
+	alignas(64) float b[1024] = { 0 };
 
 	try {
-		if (!(lut = timecube::create_lut_impl(cube, simd)))
+		if (!(lut = timecube::create_lut3d_impl(cube, sizeof(r) / sizeof(r[0]), 1, simd)))
 			throw std::runtime_error{ "failed to create LUT implementation" };
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';
 	}
 
-	alignas(32) float r[1024] = { 0 };
-	alignas(32) float g[1024] = { 0 };
-	alignas(32) float b[1024] = { 0 };
-
-	const float *src[3] = { r, g, b };
-	float *dst[3] = { r, g, b };
+	graphengine::BufferDescriptor buffers[3] = {
+		{ r, sizeof(r), graphengine::BUFFER_MAX },
+		{ g, sizeof(g), graphengine::BUFFER_MAX },
+		{ b, sizeof(b), graphengine::BUFFER_MAX },
+	};
 
 	auto start = std::chrono::high_resolution_clock::now();
 	for (unsigned i = 0; i < niter; ++i) {
-		lut->process(src, dst, sizeof(r) / sizeof(r[0]));
+		lut->process(buffers, buffers, 0, 0, sizeof(r) / sizeof(r[0]), nullptr, nullptr);
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 
