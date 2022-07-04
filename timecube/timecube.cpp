@@ -94,17 +94,22 @@ public:
 
 	void apply(const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp) const
 	{
-		graphengine::Graph::EndpointConfiguration endpoints{};
+		graphengine::BufferDescriptor src_buffer[] = {
+			{ const_cast<void *>(src[0]), src_stride[0], graphengine::BUFFER_MAX },
+			{ const_cast<void *>(src[1]), src_stride[1], graphengine::BUFFER_MAX },
+			{ const_cast<void *>(src[2]), src_stride[2], graphengine::BUFFER_MAX },
+		};
 
-		endpoints[0].id = m_source_id;
-		endpoints[0].buffer[0] = { const_cast<void *>(src[0]), src_stride[0], graphengine::BUFFER_MAX };
-		endpoints[0].buffer[1] = { const_cast<void *>(src[1]), src_stride[1], graphengine::BUFFER_MAX };
-		endpoints[0].buffer[2] = { const_cast<void *>(src[2]), src_stride[2], graphengine::BUFFER_MAX };
+		graphengine::BufferDescriptor dst_buffer[] = {
+			{ dst[0], dst_stride[0], graphengine::BUFFER_MAX },
+			{ dst[1], dst_stride[1], graphengine::BUFFER_MAX },
+			{ dst[2], dst_stride[2], graphengine::BUFFER_MAX },
+		};
 
-		endpoints[1].id = m_sink_id;
-		endpoints[1].buffer[0] = { dst[0], dst_stride[0], graphengine::BUFFER_MAX };
-		endpoints[1].buffer[1] = { dst[1], dst_stride[1], graphengine::BUFFER_MAX };
-		endpoints[1].buffer[2] = { dst[2], dst_stride[2], graphengine::BUFFER_MAX };
+		graphengine::Graph::Endpoint endpoints[] = {
+			{ m_source_id, src_buffer },
+			{ m_sink_id, dst_buffer },
+		};
 
 		m_graph.run(endpoints, tmp);
 	}
