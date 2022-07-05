@@ -1,6 +1,6 @@
 MY_CFLAGS := -O2 -fPIC $(CFLAGS)
 MY_CXXFLAGS := -std=c++14 -O2 -fPIC -fvisibility=hidden $(CXXFLAGS)
-MY_CPPFLAGS := -DGRAPHENGINE_IMPL_NAMESPACE=timecube -Igraphengine/include -Itimecube -Ivsxx $(CPPFLAGS)
+MY_CPPFLAGS := -DGRAPHENGINE_IMPL_NAMESPACE=timecube -Igraphengine/include -Itimecube -Ivsxx -Ivsxx/vapoursynth $(CPPFLAGS)
 MY_LDFLAGS := $(LDFLAGS)
 MY_LIBS := $(LIBS)
 
@@ -36,11 +36,11 @@ timecube_OBJS = \
 	timecube/x86/lut_x86.o
 
 vsxx_HDRS = \
-	vsxx/VapourSynth.h \
-	vsxx/VapourSynth++.hpp \
-	vsxx/VSHelper.h \
-	vsxx/VSScript.h \
-	vsxx/vsxx_pluginmain.h
+	vsxx/vapoursynth/VapourSynth.h \
+	vsxx/vapoursynth/VSConstants4.h \
+	vsxx/vapoursynth/VSHelper4.h \
+	vsxx/VapourSynth4++.hpp \
+	vsxx/vsxx4_pluginmain.h
 
 ifeq ($(X86), 1)
   timecube/x86/lut_avx2.o: EXTRA_CXXFLAGS := -mf16c -mavx2 -mfma -march=haswell
@@ -54,11 +54,11 @@ all: vscube.so
 benchmark/benchmark: benchmark/main.o $(timecube_OBJS) $(graphengine_OBJS)
 	$(CXX) $(MY_LDFLAGS) $^ $(MY_LIBS) -o $@
 
-vscube.so: vscube/vscube.o vsxx/vsxx_pluginmain.o $(timecube_OBJS) $(graphengine_OBJS)
+vscube.so: vscube/vscube.o vsxx/vsxx4_pluginmain.o $(timecube_OBJS) $(graphengine_OBJS)
 	$(CXX) -shared $(MY_LDFLAGS) $^ $(MY_LIBS) -o $@
 
 clean:
-	rm -f *.a *.o *.so benchmark/benchmark benchmark/*.o timecube/*.o timecube/x86/*.o vscube/*.o vsxx/*.o
+	rm -f *.a *.o *.so benchmark/benchmark benchmark/*.o graphengine/graphengine/*.o graphengine/graphengine/x86/*.o timecube/*.o timecube/x86/*.o vscube/*.o vsxx/*.o
 
 %.o: %.cpp $(graphengine_HDRS) $(timecube_HDRS) $(vsxx_HDRS)
 	$(CXX) -c $(EXTRA_CXXFLAGS) $(MY_CXXFLAGS) $(MY_CPPFLAGS) $< -o $@

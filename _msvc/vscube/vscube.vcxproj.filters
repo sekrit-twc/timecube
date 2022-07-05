@@ -21,28 +21,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\vsxx\VapourSynth.h">
+    <ClInclude Include="..\..\vsxx\VapourSynth4++.hpp">
       <Filter>Header Files\vsxx</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\vsxx\VapourSynth++.hpp">
-      <Filter>Header Files\vsxx</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\vsxx\VSHelper.h">
-      <Filter>Header Files\vsxx</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\vsxx\VSScript.h">
-      <Filter>Header Files\vsxx</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\vsxx\vsxx_pluginmain.h">
+    <ClInclude Include="..\..\vsxx\vsxx4_pluginmain.h">
       <Filter>Header Files\vsxx</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\vsxx\vsxx_pluginmain.cpp">
-      <Filter>Source Files\vsxx</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\vscube\vscube.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\vsxx\vsxx4_pluginmain.cpp">
+      <Filter>Source Files\vsxx</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

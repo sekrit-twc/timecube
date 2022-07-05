@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdio>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -216,14 +217,18 @@ timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_
 	return nullptr;
 }
 
-size_t timecube_filter_get_tmp_size(const timecube_filter *filter) noexcept
+size_t timecube_filter_get_tmp_size(const timecube_filter *filter) try
 {
 	return static_cast<const TimecubeFilterGraph *>(filter)->get_tmp_size();
+} catch (...) {
+	std::terminate();
 }
 
-void timecube_filter_apply(const timecube_filter *filter, const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp) noexcept
+void timecube_filter_apply(const timecube_filter *filter, const void * const src[3], const ptrdiff_t src_stride[3], void * const dst[3], const ptrdiff_t dst_stride[3], void *tmp) try
 {
 	static_cast<const TimecubeFilterGraph *>(filter)->apply(src, src_stride, dst, dst_stride, tmp);
+} catch (...) {
+	std::terminate();
 }
 
 void timecube_filter_free(timecube_filter *ptr)

@@ -19,15 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\vsxx\VapourSynth++.hpp" />
-    <ClInclude Include="..\..\vsxx\VapourSynth.h" />
-    <ClInclude Include="..\..\vsxx\VSHelper.h" />
-    <ClInclude Include="..\..\vsxx\VSScript.h" />
-    <ClInclude Include="..\..\vsxx\vsxx_pluginmain.h" />
+    <ClInclude Include="..\..\vsxx\VapourSynth4++.hpp" />
+    <ClInclude Include="..\..\vsxx\vsxx4_pluginmain.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\vscube\vscube.cpp" />
-    <ClCompile Include="..\..\vsxx\vsxx_pluginmain.cpp" />
+    <ClCompile Include="..\..\vsxx\vsxx4_pluginmain.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
@@ -86,7 +83,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\vsxx\vapoursynth;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(OutDir)</AdditionalLibraryDirectories>
@@ -98,7 +95,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\vsxx\vapoursynth;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(OutDir)</AdditionalLibraryDirectories>
@@ -112,7 +109,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\vsxx\vapoursynth;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -128,7 +125,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\vsxx;$(ProjectDir)..\..\vsxx\vapoursynth;$(ProjectDir)..\..\timecube</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
