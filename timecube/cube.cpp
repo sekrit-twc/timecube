@@ -11,6 +11,11 @@
 #include <system_error>
 #include "cube.h"
 
+#ifdef _WIN32
+  #include <string>
+  #include <Windows.h>
+#endif
+
 namespace timecube {
 namespace {
 
@@ -137,8 +142,23 @@ size_t lut_size(uint_least32_t n, bool is_3d)
 Cube read_cube_from_file(const char *path)
 {
 	Cube cube;
+	std::unique_ptr<std::FILE, FileCloser> file_uptr;
 
-	std::unique_ptr<std::FILE, FileCloser> file_uptr{ std::fopen(path, "r") };
+#ifdef _WIN32
+	{
+		int res = MultiByteToWideChar(CP_UTF8, 0, path, static_cast<int>(std::strlen(path)), nullptr, 0);
+		if (res <= 0)
+			throw_system_error();
+		std::wstring ws(res, L'\0');
+		res = MultiByteToWideChar(CP_UTF8, 0, path, static_cast<int>(std::strlen(path)), &ws[0], static_cast<int>(ws.size()));
+		if (res <= 0)
+			throw_system_error();
+
+		file_uptr.reset(_wfopen(ws.c_str(), L"r"));
+	}
+#else
+	file_uptr.reset(std::fopen(path, "r"));
+#endif
 	std::FILE *file = file_uptr.get();
 	char buf[LINE_LEN];
 
