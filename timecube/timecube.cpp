@@ -49,7 +49,7 @@ class TimecubeFilterGraph : public timecube_filter {
 	graphengine::node_id m_source_id = graphengine::null_node;
 	graphengine::node_id m_sink_id = graphengine::null_node;
 public:
-	TimecubeFilterGraph(const timecube::Cube &cube, unsigned width, unsigned height, const timecube::PixelFormat &src_format, const timecube::PixelFormat &dst_format, int cpu)
+	TimecubeFilterGraph(const timecube::Cube &cube, unsigned width, unsigned height, const timecube::PixelFormat &src_format, const timecube::PixelFormat &dst_format, timecube::Interpolation interp, timecube_cpu_type_e cpu)
 	{
 		graphengine::PlaneDescriptor format[3];
 		std::fill_n(format, 3, graphengine::PlaneDescriptor{ width, height, timecube::pixel_size(src_format.type) });
@@ -66,7 +66,7 @@ public:
 		}
 
 		if (cube.is_3d) {
-			std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut3d_impl(cube, width, height, cpu);
+			std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut3d_impl(cube, width, height, interp, cpu);
 			graphengine::node_id id = m_graph.add_transform(lut_filter.get(), ids);
 			ids[0] = { id, 0 };
 			ids[1] = { id, 1 };
@@ -74,7 +74,7 @@ public:
 			m_filters.push_back(std::move(lut_filter));
 		} else {
 			for (unsigned p = 0; p < 3; ++p) {
-				std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut1d_impl(cube, width, height, p, cpu);
+				std::unique_ptr<graphengine::Filter> lut_filter = timecube::create_lut1d_impl(cube, width, height, p, interp, cpu);
 				ids[p] = { m_graph.add_transform(lut_filter.get(), &ids[p]), 0 };
 				m_filters.push_back(std::move(lut_filter));
 			}
@@ -205,13 +205,14 @@ void timecube_lut_free(timecube_lut *ptr)
 	delete static_cast<timecube::Cube *>(ptr);
 }
 
-timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params, unsigned width, unsigned height, timecube_cpu_type_e cpu) try
+timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params) try
 {
 	const timecube::Cube *cube = static_cast<const timecube::Cube *>(lut);
 	timecube::PixelFormat src_format{ static_cast<timecube::PixelType>(params->src_type), params->src_depth, params->src_range == TIMECUBE_RANGE_FULL };
 	timecube::PixelFormat dst_format{ static_cast<timecube::PixelType>(params->dst_type), params->dst_depth, params->dst_range == TIMECUBE_RANGE_FULL };
+	timecube::Interpolation interp = static_cast<timecube::Interpolation>(params->interp);
 
-	std::unique_ptr<TimecubeFilterGraph> filter = std::make_unique<TimecubeFilterGraph>(*cube, width, height, src_format, dst_format, cpu);
+	std::unique_ptr<TimecubeFilterGraph> filter = std::make_unique<TimecubeFilterGraph>(*cube, params->width, params->height, src_format, dst_format, interp, params->cpu);
 	return filter.release();
 } catch (...) {
 	return nullptr;

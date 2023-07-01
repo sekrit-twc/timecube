@@ -34,11 +34,11 @@ DEFINE_IO_FUNC(half, float, avx512)
 DEFINE_IO_FUNC(float, half, avx2)
 DEFINE_IO_FUNC(float, half, avx512)
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_sse41(const Cube &cube, unsigned width, unsigned height);
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx2(const Cube &cube, unsigned width, unsigned height);
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx512(const Cube &cube, unsigned width, unsigned height);
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_sse41(const Cube &cube, unsigned width, unsigned height, Interpolation interp);
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx2(const Cube &cube, unsigned width, unsigned height, Interpolation interp);
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx512(const Cube &cube, unsigned width, unsigned height, Interpolation interp);
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_x86(const Cube &cube, unsigned width, unsigned height, int simd);
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_x86(const Cube &cube, unsigned width, unsigned height, Interpolation interp, int simd);
 
 pixel_io_func select_from_float_func_x86(PixelType from, int simd);
 pixel_io_func select_to_float_func_x86(PixelType to, int simd);

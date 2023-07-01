@@ -79,18 +79,70 @@ T interp(T lo, T hi, float dist)
 	return (1.0f - dist) * lo + dist * hi;
 }
 
-Vector3 trilinear_interp(const Vector3 tri[2][2][2], float dist_x, float dist_y, float dist_z)
+Vector3 trilinear_interp(float r, float g, float b, const Vector3 *lut, uint_least32_t dim)
 {
-	Vector3 tmp0 = interp(tri[0][0][0], tri[1][0][0], dist_x);
-	Vector3 tmp1 = interp(tri[0][0][1], tri[1][0][1], dist_x);
-	Vector3 tmp2 = interp(tri[0][1][0], tri[1][1][0], dist_x);
-	Vector3 tmp3 = interp(tri[0][1][1], tri[1][1][1], dist_x);
+	Vector3 vert000 = lut[0 + 0 * dim + 0 * dim * dim];
+	Vector3 vert001 = lut[1 + 0 * dim + 0 * dim * dim];
+	Vector3 vert010 = lut[0 + 1 * dim + 0 * dim * dim];
+	Vector3 vert011 = lut[1 + 1 * dim + 0 * dim * dim];
+	Vector3 vert100 = lut[0 + 0 * dim + 1 * dim * dim];
+	Vector3 vert101 = lut[1 + 0 * dim + 1 * dim * dim];
+	Vector3 vert110 = lut[0 + 1 * dim + 1 * dim * dim];
+	Vector3 vert111 = lut[1 + 1 * dim + 1 * dim * dim];
 
-	tmp0 = interp(tmp0, tmp2, dist_y);
-	tmp1 = interp(tmp1, tmp3, dist_y);
+	Vector3 tmp0 = interp(vert000, vert001, r);
+	Vector3 tmp1 = interp(vert100, vert101, r);
+	Vector3 tmp2 = interp(vert010, vert011, r);
+	Vector3 tmp3 = interp(vert110, vert111, r);
 
-	tmp0 = interp(tmp0, tmp1, dist_z);
+	tmp0 = interp(tmp0, tmp2, g);
+	tmp1 = interp(tmp1, tmp3, g);
+
+	tmp0 = interp(tmp0, tmp1, b);
 	return tmp0;
+}
+
+template <class T>
+void minmax(T &x, T &y)
+{
+	T minval = std::min(x, y);
+	T maxval = std::max(x, y);
+	x = minval;
+	y = maxval;
+}
+
+template <class T>
+void sort3(T &x, T &y, T &z)
+{
+	minmax(x, z);
+	minmax(x, y);
+	minmax(y, z);
+}
+
+Vector3 tetrahedral_interp(float r, float g, float b, const Vector3 *lut, uint_least32_t dim)
+{
+	float x = r, y = g, z = b;
+	uint_least32_t diag = 1 + dim + dim * dim;
+	uint_least32_t disp1, disp2;
+
+	Vector3 vert[4];
+	float w[4];
+
+	sort3(x, y, z);
+	disp1 = z == r ? 1 : z == g ? dim : dim * dim;
+	disp2 = x == r ? 1 : x == g ? dim : dim * dim;
+
+	vert[0] = lut[0];
+	vert[1] = lut[diag];
+	vert[2] = lut[disp1];
+	vert[3] = lut[diag - disp2];
+
+	w[0] = 1.0f - z;
+	w[1] = x;
+	w[2] = z - y;
+	w[3] = y - x;
+
+	return w[0] * vert[0] + w[1] * vert[1] + w[2] * vert[2] + w[3] * vert[3];
 }
 
 
@@ -99,7 +151,7 @@ class Lut1DFilter_C : public Lut1DFilter {
 	float m_scale;
 	float m_offset;
 public:
-	explicit Lut1DFilter_C(const Cube &cube, unsigned width, unsigned height, unsigned plane) :
+	Lut1DFilter_C(const Cube &cube, unsigned width, unsigned height, unsigned plane) :
 		Lut1DFilter(width, height),
 		m_scale{},
 		m_offset{}
@@ -139,12 +191,13 @@ public:
 };
 
 class Lut3DFilter_C : public Lut3DFilter {
+protected:
 	std::vector<Vector3> m_lut;
 	uint_least32_t m_dim;
 	float m_scale[3];
 	float m_offset[3];
-public:
-	explicit Lut3DFilter_C(const Cube &cube, unsigned width, unsigned height) :
+
+	Lut3DFilter_C(const Cube &cube, unsigned width, unsigned height) :
 		Lut3DFilter(width, height),
 		m_dim{ cube.n },
 		m_scale{},
@@ -163,9 +216,14 @@ public:
 			m_lut[i][2] = cube.lut[i * 3 + 2];
 		}
 	}
+};
+
+class TrilinearFilter_C : public Lut3DFilter_C {
+public:
+	TrilinearFilter_C(const Cube &cube, unsigned width, unsigned height) : Lut3DFilter_C(cube, width, height) {}
 
 	void process(const graphengine::BufferDescriptor in[], const graphengine::BufferDescriptor out[],
-                 unsigned i, unsigned left, unsigned right, void *, void *) const noexcept override
+	             unsigned i, unsigned left, unsigned right, void *, void *) const noexcept override
 	{
 		const float *src_r = in[0].get_line<float>(i);
 		const float *src_g = in[1].get_line<float>(i);
@@ -181,8 +239,8 @@ public:
 			float r, g, b;
 			float dist_r, dist_g, dist_b;
 			uint_least32_t idx_r, idx_g, idx_b;
+			uint_least32_t idx;
 
-			Vector3 tri[2][2][2];
 			Vector3 interp_result;
 
 			r = src_r[i];
@@ -200,21 +258,13 @@ public:
 			idx_r = static_cast<uint_least32_t>(r);
 			idx_g = static_cast<uint_least32_t>(g);
 			idx_b = static_cast<uint_least32_t>(b);
+			idx = idx_r + idx_g * m_dim + idx_b * m_dim * m_dim;
 
 			dist_r = r - idx_r;
 			dist_g = g - idx_g;
 			dist_b = b - idx_b;
 
-			tri[0][0][0] = m_lut[(idx_r + 0) + (idx_g + 0) * m_dim + (idx_b + 0) * m_dim * m_dim];
-			tri[0][0][1] = m_lut[(idx_r + 1) + (idx_g + 0) * m_dim + (idx_b + 0) * m_dim * m_dim];
-			tri[0][1][0] = m_lut[(idx_r + 0) + (idx_g + 1) * m_dim + (idx_b + 0) * m_dim * m_dim];
-			tri[0][1][1] = m_lut[(idx_r + 1) + (idx_g + 1) * m_dim + (idx_b + 0) * m_dim * m_dim];
-			tri[1][0][0] = m_lut[(idx_r + 0) + (idx_g + 0) * m_dim + (idx_b + 1) * m_dim * m_dim];
-			tri[1][0][1] = m_lut[(idx_r + 1) + (idx_g + 0) * m_dim + (idx_b + 1) * m_dim * m_dim];
-			tri[1][1][0] = m_lut[(idx_r + 0) + (idx_g + 1) * m_dim + (idx_b + 1) * m_dim * m_dim];
-			tri[1][1][1] = m_lut[(idx_r + 1) + (idx_g + 1) * m_dim + (idx_b + 1) * m_dim * m_dim];
-
-			interp_result = trilinear_interp(tri, dist_b, dist_g, dist_r);
+			interp_result = trilinear_interp(dist_r, dist_g, dist_b, m_lut.data() + idx, m_dim);
 			r = interp_result[0];
 			g = interp_result[1];
 			b = interp_result[2];
@@ -222,6 +272,61 @@ public:
 			dst_r[i] = r;
 			dst_g[i] = g;
 			dst_b[i] = b;
+		}
+	}
+};
+
+class TetrahedralFilters_C : public Lut3DFilter_C {
+public:
+	TetrahedralFilters_C(const Cube &cube, unsigned width, unsigned height) : Lut3DFilter_C(cube, width, height) {}
+
+	void process(const graphengine::BufferDescriptor in[], const graphengine::BufferDescriptor out[],
+	             unsigned i, unsigned left, unsigned right, void *, void *) const noexcept override
+	{
+		const float *src_r = in[0].get_line<float>(i);
+		const float *src_g = in[1].get_line<float>(i);
+		const float *src_b = in[2].get_line<float>(i);
+		float *dst_r = out[0].get_line<float>(i);
+		float *dst_g = out[1].get_line<float>(i);
+		float *dst_b = out[2].get_line<float>(i);
+
+		uint_least32_t lut_max = m_dim - 1;
+		float lut_clamp = std::nextafter(static_cast<float>(lut_max), -INFINITY);
+
+		for (unsigned i = left; i < right; ++i) {
+			float r, g, b;
+			float dist_r, dist_g, dist_b;
+			uint_least32_t idx_r, idx_g, idx_b;
+			uint_least32_t idx;
+
+			Vector3 interp_result;
+
+			r = src_r[i];
+			g = src_g[i];
+			b = src_b[i];
+
+			r = (r * m_scale[0] + m_offset[0]) * lut_max;
+			g = (g * m_scale[1] + m_offset[1]) * lut_max;
+			b = (b * m_scale[2] + m_offset[2]) * lut_max;
+
+			r = std::min(std::max(r, 0.0f), lut_clamp);
+			g = std::min(std::max(g, 0.0f), lut_clamp);
+			b = std::min(std::max(b, 0.0f), lut_clamp);
+
+			idx_r = static_cast<uint_least32_t>(r);
+			idx_g = static_cast<uint_least32_t>(g);
+			idx_b = static_cast<uint_least32_t>(b);
+			idx = idx_r + idx_g * m_dim + idx_b * m_dim * m_dim;
+
+			dist_r = r - idx_r;
+			dist_g = g - idx_g;
+			dist_b = b - idx_b;
+
+			interp_result = tetrahedral_interp(dist_r, dist_g, dist_b, m_lut.data() + idx, m_dim);
+
+			dst_r[i] = interp_result[0];
+			dst_g[i] = interp_result[1];
+			dst_b[i] = interp_result[2];
 		}
 	}
 };
@@ -364,7 +469,7 @@ std::unique_ptr<graphengine::Filter> create_from_float_impl(unsigned width, unsi
 	return std::make_unique<PixelIOFilter>(PixelIOFilter::FROM_FLOAT, width, height, to, func);
 }
 
-std::unique_ptr<graphengine::Filter> create_lut1d_impl(const Cube &cube, unsigned width, unsigned height, unsigned plane, int)
+std::unique_ptr<graphengine::Filter> create_lut1d_impl(const Cube &cube, unsigned width, unsigned height, unsigned plane, Interpolation, int)
 {
 	if (cube.is_3d)
 		throw std::invalid_argument{ "wrong LUT type" };
@@ -372,17 +477,21 @@ std::unique_ptr<graphengine::Filter> create_lut1d_impl(const Cube &cube, unsigne
 	return std::make_unique<Lut1DFilter_C>(cube, width, height, plane);
 }
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl(const Cube &cube, unsigned width, unsigned height, int simd)
+std::unique_ptr<graphengine::Filter> create_lut3d_impl(const Cube &cube, unsigned width, unsigned height, Interpolation interp, int simd)
 {
 	if (!cube.is_3d)
 		throw std::invalid_argument{ "wrong LUT type" };
 
 	std::unique_ptr<graphengine::Filter> ret;
 #ifdef CUBE_X86
-	ret = create_lut3d_impl_x86(cube, width, height, simd);
+	ret = create_lut3d_impl_x86(cube, width, height, interp, simd);
 #endif
-	if (!ret)
-		ret = std::make_unique<Lut3DFilter_C>(cube, width, height);
+	if (!ret) {
+		if (interp == Interpolation::TETRA)
+			ret = std::make_unique<TetrahedralFilters_C>(cube, width, height);
+		else
+			ret = std::make_unique<TrilinearFilter_C>(cube, width, height);
+	}
 
 	return ret;
 }

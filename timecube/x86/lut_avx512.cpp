@@ -407,8 +407,11 @@ void float_to_half_avx512(const void *src, void *dst, unsigned left, unsigned ri
 }
 
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx512(const Cube &cube, unsigned width, unsigned height)
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_avx512(const Cube &cube, unsigned width, unsigned height, Interpolation interp)
 {
+	if (interp != Interpolation::LINEAR)
+		return nullptr;
+
 	return std::make_unique<Lut3DFilter_AVX512>(cube, width, height);
 }
 

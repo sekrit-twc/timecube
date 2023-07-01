@@ -12,15 +12,18 @@
 int main(int argc, char **argv)
 {
 	unsigned niter = 4000000;
+	timecube::Interpolation interp = timecube::Interpolation::LINEAR;
 	int simd = INT_MAX;
 
 	try {
 		if (argc >= 2)
 			niter = std::stoi(argv[1]);
 		if (argc >= 3)
-			simd = std::stoi(argv[2]);
+			interp = static_cast<timecube::Interpolation>(std::stoi(argv[2]));
+		if (argc >= 4)
+			simd = std::stoi(argv[3]);
 	} catch (const std::exception &) {
-		std::cerr << "usage: benchmark [niter] [simd]\n";
+		std::cerr << "usage: benchmark [niter] [interp] [simd]\n";
 		return 1;
 	}
 
@@ -44,7 +47,7 @@ int main(int argc, char **argv)
 	alignas(64) float b[1024] = { 0 };
 
 	try {
-		if (!(lut = timecube::create_lut3d_impl(cube, sizeof(r) / sizeof(r[0]), 1, simd)))
+		if (!(lut = timecube::create_lut3d_impl(cube, sizeof(r) / sizeof(r[0]), 1, interp, simd)))
 			throw std::runtime_error{ "failed to create LUT implementation" };
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << '\n';

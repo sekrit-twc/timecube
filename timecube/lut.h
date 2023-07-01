@@ -11,6 +11,11 @@ namespace timecube {
 struct Cube;
 
 
+enum class Interpolation {
+	LINEAR,
+	TETRA,
+};
+
 enum class PixelType {
 	BYTE,
 	WORD,
@@ -114,9 +119,9 @@ std::unique_ptr<graphengine::Filter> create_to_float_impl(unsigned width, unsign
 
 std::unique_ptr<graphengine::Filter> create_from_float_impl(unsigned width, unsigned height, const PixelFormat &to, int simd);
 
-std::unique_ptr<graphengine::Filter> create_lut1d_impl(const Cube &cube, unsigned width, unsigned height, unsigned plane, int simd);
+std::unique_ptr<graphengine::Filter> create_lut1d_impl(const Cube &cube, unsigned width, unsigned height, unsigned plane, Interpolation interp, int simd);
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl(const Cube &cube, unsigned width, unsigned height, int simd);
+std::unique_ptr<graphengine::Filter> create_lut3d_impl(const Cube &cube, unsigned width, unsigned height, Interpolation interp, int simd);
 
 } // namespace timecube
 

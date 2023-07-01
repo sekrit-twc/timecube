@@ -9,7 +9,7 @@ namespace {
 
 void usage()
 {
-	std::cerr << "usage: test cubefile [x y z] [simd]\n";
+	std::cerr << "usage: test cubefile [x y z] [interp] [simd]\n";
 }
 
 } // namespace
@@ -26,6 +26,7 @@ int main(int argc, char **argv)
 	alignas(64) float x = 0.0f;
 	alignas(64) float y = 0.0f;
 	alignas(64) float z = 0.0f;
+	timecube::Interpolation interp = timecube::Interpolation::LINEAR;
 	int simd = 0;
 
 	try {
@@ -36,7 +37,10 @@ int main(int argc, char **argv)
 		}
 
 		if (argc >= 6)
-			simd = std::stoi(argv[5]);
+			interp = static_cast<timecube::Interpolation>(std::stoi(argv[5]));
+
+		if (argc >= 7)
+			simd = std::stoi(argv[6]);
 	} catch (const std::exception &) {
 		usage();
 		return 1;
@@ -48,14 +52,14 @@ int main(int argc, char **argv)
 		std::cout << "last entry: " << cube.lut[cube.lut.size() - 3] << ' ' << cube.lut[cube.lut.size() - 2] << ' ' << cube.lut[cube.lut.size() - 1] << '\n';
 
 		if (cube.is_3d) {
-			if (!(lut[0] = timecube::create_lut3d_impl(cube, 1, 1, simd)))
+			if (!(lut[0] = timecube::create_lut3d_impl(cube, 1, 1, interp, simd)))
 				throw std::runtime_error{ "failed to create LUT implementation" };
 		} else {
-			if (!(lut[0] = timecube::create_lut1d_impl(cube, 1, 1, 0, simd)))
+			if (!(lut[0] = timecube::create_lut1d_impl(cube, 1, 1, 0, interp, simd)))
 				throw std::runtime_error{ "failed to create LUT implementation" };
-			if (!(lut[1] = timecube::create_lut1d_impl(cube, 1, 1, 1, simd)))
+			if (!(lut[1] = timecube::create_lut1d_impl(cube, 1, 1, 1, interp, simd)))
 				throw std::runtime_error{ "failed to create LUT implementation" };
-			if (!(lut[2] = timecube::create_lut1d_impl(cube, 1, 1, 2, simd)))
+			if (!(lut[2] = timecube::create_lut1d_impl(cube, 1, 1, 2, interp, simd)))
 				throw std::runtime_error{ "failed to create LUT implementation" };
 		}
 	} catch (const std::exception &e) {

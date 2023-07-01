@@ -71,6 +71,10 @@ public:
 		if (!lut)
 			throw std::runtime_error{ "error reading LUT from file" };
 
+		int interp = vsh::int64ToIntS(in.get_prop<int64_t>("interp", map::default_val(0LL)));
+		if (interp < 0)
+			interp = 0;
+
 		int cpu = vsh::int64ToIntS(in.get_prop<int64_t>("cpu", map::default_val(INT64_MAX)));
 		if (cpu < 0)
 			cpu = INT_MAX;
@@ -82,24 +86,28 @@ public:
 		}
 
 		timecube_filter_params params{};
+		params.width = m_vi.width;
+		params.height = m_vi.height;
 		params.src_type = vsformat_to_pixtype(src_vi.format);
 		params.src_depth = src_vi.format.bitsPerSample;
 		params.src_range = TIMECUBE_RANGE_INTERNAL;
 		params.dst_type = vsformat_to_pixtype(m_vi.format);
 		params.dst_depth = m_vi.format.bitsPerSample;
 		params.dst_range = m_force_output_range;
+		params.interp = static_cast<timecube_interpolation_e>(interp);
+		params.cpu = static_cast<timecube_cpu_type_e>(cpu);
 
 		// Limited range input.
 		params.src_range = TIMECUBE_RANGE_LIMITED;
 		params.dst_range = m_force_output_range != TIMECUBE_RANGE_INTERNAL ? m_force_output_range : params.src_range;
-		m_filter_limited.reset(timecube_filter_create(lut.get(), &params, m_vi.width, m_vi.height, static_cast<timecube_cpu_type_e>(cpu)));
+		m_filter_limited.reset(timecube_filter_create(lut.get(), &params));
 		if (!m_filter_limited)
 			throw std::runtime_error{ "error creating filter" };
 
 		// Full range input.
 		params.src_range = TIMECUBE_RANGE_FULL;
 		params.dst_range = m_force_output_range != TIMECUBE_RANGE_INTERNAL ? m_force_output_range : params.src_range;
-		m_filter_full.reset(timecube_filter_create(lut.get(), &params, m_vi.width, m_vi.height, static_cast<timecube_cpu_type_e>(cpu)));
+		m_filter_full.reset(timecube_filter_create(lut.get(), &params));
 		if (!m_filter_full)
 			throw std::runtime_error{ "error creating filter" };
 
@@ -151,6 +159,6 @@ public:
 
 const PluginInfo4 g_plugin_info4 = {
 	"day.simultaneous.4", "timecube", "TimeCube 4D", 0, {
-		{ &FilterBase::filter_create<TimeCube>, "Cube", "clip:vnode;cube:data;format:int:opt;range:int:opt;cpu:int:opt;", "clip:vnode;" }
+		{ &FilterBase::filter_create<TimeCube>, "Cube", "clip:vnode;cube:data;format:int:opt;range:int:opt;interp:int:opt;cpu:int:opt;", "clip:vnode;" }
 	}
 };

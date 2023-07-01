@@ -241,17 +241,17 @@ pixel_io_func select_to_float_func_avx512(PixelType from)
 } // namespace
 
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_x86(const Cube &cube, unsigned width, unsigned height, int simd)
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_x86(const Cube &cube, unsigned width, unsigned height, Interpolation interp, int simd)
 {
 	X86Capabilities caps = query_x86_capabilities();
 	std::unique_ptr<graphengine::Filter> ret;
 
 	if (!ret && simd >= SIMD_AVX512 && caps.avx512f && caps.avx512bw && caps.avx512dq && caps.avx512vl)
-		ret = create_lut3d_impl_avx512(cube, width, height);
+		ret = create_lut3d_impl_avx512(cube, width, height, interp);
 	if (!ret && simd >= SIMD_AVX2 && caps.avx2 && caps.fma)
-		ret = create_lut3d_impl_avx2(cube, width, height);
+		ret = create_lut3d_impl_avx2(cube, width, height, interp);
 	if (!ret && simd >= SIMD_SSE42 && caps.sse41)
-		ret = create_lut3d_impl_sse41(cube, width, height);
+		ret = create_lut3d_impl_sse41(cube, width, height, interp);
 
 	return ret;
 }

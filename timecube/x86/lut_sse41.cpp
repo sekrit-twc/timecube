@@ -390,8 +390,11 @@ void float_to_word_sse41(const void *src, void *dst, unsigned left, unsigned rig
 }
 
 
-std::unique_ptr<graphengine::Filter> create_lut3d_impl_sse41(const Cube &cube, unsigned width, unsigned height)
+std::unique_ptr<graphengine::Filter> create_lut3d_impl_sse41(const Cube &cube, unsigned width, unsigned height, Interpolation interp)
 {
+	if (interp != Interpolation::LINEAR)
+		return nullptr;
+
 	return std::make_unique<Lut3DFilter_SSE41>(cube, width, height);
 }
 

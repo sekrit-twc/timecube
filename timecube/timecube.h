@@ -33,6 +33,11 @@ typedef enum timecube_lut_format_e {
 	TIMECUBE_LUT_ADOBE_CUBE  /**< Adobe Cube LUT. */
 } timecube_lut_format_e;
 
+typedef enum timecube_interpolation_e {
+	TIMECUBE_INTERP_LINEAR = 0,  /**< Linear (1D) or trilinear (3D). */
+	TIMECUBE_INTERP_TETRA  = 1,  /**< Tetrahedral (3D) */
+} timecube_interpolation_e;
+
 
 typedef struct timecube_lut timecube_lut;
 
@@ -58,15 +63,21 @@ void timecube_lut_free(timecube_lut *ptr);
 typedef struct timecube_filter timecube_filter;
 
 typedef struct timecube_filter_params {
+	unsigned width;
+	unsigned height;
+
 	timecube_pixel_type_e src_type;
 	timecube_pixel_range_e src_range;
 	unsigned src_depth;
 	timecube_pixel_type_e dst_type;
 	timecube_pixel_range_e dst_range;
 	unsigned dst_depth;
+
+	timecube_interpolation_e interp;
+	timecube_cpu_type_e cpu;
 } timecube_filter_params;
 
-timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params, unsigned width, unsigned height, timecube_cpu_type_e cpu);
+timecube_filter *timecube_filter_create(const timecube_lut *lut, const timecube_filter_params *params);
 
 size_t timecube_filter_get_tmp_size(const timecube_filter *filter);
 
