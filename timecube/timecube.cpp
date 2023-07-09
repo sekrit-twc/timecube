@@ -25,24 +25,6 @@ struct FileCloser {
 	void operator()(std::FILE *file) const { std::fclose(file); }
 };
 
-#ifdef _WIN32
-std::wstring utf8_to_utf16(const std::string &s)
-{
-	if (s.size() > static_cast<size_t>(INT_MAX))
-		throw std::length_error{ "" };
-
-	std::wstring us(s.size(), L'\0');
-
-	int len = ::MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, s.data(), static_cast<int>(s.size()), &us[0], static_cast<int>(us.size()));
-	if (!len)
-		throw std::runtime_error{ "bad UTF-8/UTF-16 conversion" };
-
-	us.resize(len);
-	return us;
-}
-#endif
-
-
 class TimecubeFilterGraph : public timecube_filter {
 	std::vector<std::unique_ptr<graphengine::Filter>> m_filters;
 	graphengine::GraphImpl m_graph;

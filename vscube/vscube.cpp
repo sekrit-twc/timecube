@@ -30,11 +30,6 @@ timecube_pixel_type_e vsformat_to_pixtype(const VSVideoFormat &vsformat)
 		throw std::runtime_error{ "unknown pixel type" };
 }
 
-timecube_pixel_range_e props_to_range(const Map &props)
-{
-	return props.get_prop<int>("_ColorRange", map::default_val(0)) == 0 ? TIMECUBE_RANGE_FULL : TIMECUBE_RANGE_LIMITED;
-}
-
 
 class TimeCube : public FilterBase {
 	FilterNode m_clip;
