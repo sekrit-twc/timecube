@@ -229,7 +229,7 @@ protected:
 	{
 		for (unsigned i = 0; i < 3; ++i) {
 			m_scale[i] = (m_dim - 1) / (cube.domain_max[i] - cube.domain_min[i]);
-			m_offset[i] = cube.domain_min[i] * m_scale[i];
+			m_offset[i] = -cube.domain_min[i] * m_scale[i];
 		}
 
 		// Pad each LUT entry to 16 bytes.

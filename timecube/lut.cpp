@@ -157,7 +157,7 @@ public:
 		m_offset{}
 	{
 		m_scale = 1.0f / (cube.domain_max[plane] - cube.domain_min[plane]);
-		m_offset = cube.domain_min[plane] * m_scale;
+		m_offset = -cube.domain_min[plane] * m_scale;
 
 		for (size_t i = 0; i < cube.n; ++i) {
 			m_lut[i] = cube.lut[i * 3 + plane];
@@ -205,7 +205,7 @@ protected:
 	{
 		for (unsigned i = 0; i < 3; ++i) {
 			m_scale[i] = 1.0f / (cube.domain_max[i] - cube.domain_min[i]);
-			m_offset[i] = cube.domain_min[i] * m_scale[i];
+			m_offset[i] = -cube.domain_min[i] * m_scale[i];
 		}
 
 		m_lut.resize(m_dim * m_dim * m_dim);
