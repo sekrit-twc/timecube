@@ -346,6 +346,11 @@ public:
 #endif
 
 #define INDICES idx_scalar_lolo & 0xFFFFFFFFU, idx_scalar_lohi & 0xFFFFFFFFU, idx_scalar_hilo & 0xFFFFFFFFU, idx_scalar_hihi & 0xFFFFFFFFU
+#ifdef __llvm__
+  #define BARRIER(x) asm volatile("" :  : "v"(x) :)
+#else
+  #define BARRIER(x) (void)0
+#endif
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(0, 0, 0, 0));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(0, 0, 0, 0));
 			btmp = _mm512_permute_ps(b, _MM_SHUFFLE(0, 0, 0, 0));
@@ -354,6 +359,7 @@ public:
 			idx_scalar_hilo = EXTRACT_EVEN(idx_scalar_hilo, idx_hilo, 0);
 			idx_scalar_hihi = EXTRACT_EVEN(idx_scalar_hihi, idx_hihi, 0);
 			result048c = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, INDICES, rtmp, gtmp, btmp);
+			BARRIER(result048c);
 
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(1, 1, 1, 1));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(1, 1, 1, 1));
@@ -363,6 +369,7 @@ public:
 			idx_scalar_hilo = EXTRACT_ODD(idx_scalar_hilo, idx_hilo, 1);
 			idx_scalar_hihi = EXTRACT_ODD(idx_scalar_hihi, idx_hihi, 1);
 			result159d = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, INDICES, rtmp, gtmp, btmp);
+			BARRIER(result159d);
 
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(2, 2, 2, 2));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(2, 2, 2, 2));
@@ -372,6 +379,7 @@ public:
 			idx_scalar_hilo = EXTRACT_EVEN(idx_scalar_hilo, idx_hilo, 2);
 			idx_scalar_hihi = EXTRACT_EVEN(idx_scalar_hihi, idx_hihi, 2);
 			result26ae = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, INDICES, rtmp, gtmp, btmp);
+			BARRIER(result26ae);
 
 			rtmp = _mm512_permute_ps(r, _MM_SHUFFLE(3, 3, 3, 3));
 			gtmp = _mm512_permute_ps(g, _MM_SHUFFLE(3, 3, 3, 3));
@@ -381,6 +389,7 @@ public:
 			idx_scalar_hilo = EXTRACT_ODD(idx_scalar_hilo, idx_hilo, 3);
 			idx_scalar_hihi = EXTRACT_ODD(idx_scalar_hihi, idx_hihi, 3);
 			result37bf = lut3d_trilinear_interp(lut, lut_stride_g, lut_stride_b, INDICES, rtmp, gtmp, btmp);
+#undef BARRIER
 #undef INDICES
 #undef EXTRACT_ODD
 #undef EXTRACT_EVEN

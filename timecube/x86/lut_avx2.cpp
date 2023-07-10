@@ -442,6 +442,11 @@ public:
 #endif
 
 #define INDICES idx_scalar_lo & 0xFFFFFFFFU, idx_scalar_hi & 0xFFFFFFFFU, diag_scalar_lo & 0xFFFFFFFFU, diag_scalar_hi & 0xFFFFFFFFU, disp1_scalar_lo & 0xFFFFFFFFU, disp1_scalar_hi & 0xFFFFFFFFU, disp2_scalar_lo & 0xFFFFFFFFU, disp2_scalar_hi & 0xFFFFFFFFU
+#ifdef __llvm__
+  #define BARRIER(x) asm volatile("" :  : "v"(x) :)
+#else
+  #define BARRIER(x) (void)0
+#endif
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(0, 0, 0, 0));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(0, 0, 0, 0));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(0, 0, 0, 0));
@@ -454,7 +459,7 @@ public:
 			disp2_scalar_lo = EXTRACT_EVEN(disp2_scalar_lo, disp2_lo, 0);
 			disp2_scalar_hi = EXTRACT_EVEN(disp2_scalar_hi, disp2_hi, 0);
 			result04 = lut3d_tetra_interp(lut, INDICES, rtmp, gtmp, btmp);
-
+			BARRIER(result04);
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(1, 1, 1, 1));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(1, 1, 1, 1));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(1, 1, 1, 1));
@@ -467,7 +472,7 @@ public:
 			disp2_scalar_lo = EXTRACT_ODD(disp2_scalar_lo, disp2_lo, 1);
 			disp2_scalar_hi = EXTRACT_ODD(disp2_scalar_hi, disp2_hi, 1);
 			result15 = lut3d_tetra_interp(lut, INDICES, rtmp, gtmp, btmp);
-
+			BARRIER(result15);
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(2, 2, 2, 2));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(2, 2, 2, 2));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(2, 2, 2, 2));
@@ -480,7 +485,7 @@ public:
 			disp2_scalar_lo = EXTRACT_EVEN(disp2_scalar_lo, disp2_lo, 2);
 			disp2_scalar_hi = EXTRACT_EVEN(disp2_scalar_hi, disp2_hi, 2);
 			result26 = lut3d_tetra_interp(lut, INDICES, rtmp, gtmp, btmp);
-
+			BARRIER(result26);
 			rtmp = _mm256_permute_ps(r, _MM_SHUFFLE(3, 3, 3, 3));
 			gtmp = _mm256_permute_ps(g, _MM_SHUFFLE(3, 3, 3, 3));
 			btmp = _mm256_permute_ps(b, _MM_SHUFFLE(3, 3, 3, 3));
@@ -493,6 +498,7 @@ public:
 			disp2_scalar_lo = EXTRACT_ODD(disp2_scalar_lo, disp2_lo, 3);
 			disp2_scalar_hi = EXTRACT_ODD(disp2_scalar_hi, disp2_hi, 3);
 			result37 = lut3d_tetra_interp(lut, INDICES, rtmp, gtmp, btmp);
+#undef BARRIER
 #undef INDICES
 #undef EXTRACT_ODD
 #undef EXTRACT_EVEN
