@@ -276,9 +276,9 @@ public:
 	}
 };
 
-class TetrahedralFilters_C : public Lut3DFilter_C {
+class TetrahedralFilter_C : public Lut3DFilter_C {
 public:
-	TetrahedralFilters_C(const Cube &cube, unsigned width, unsigned height) : Lut3DFilter_C(cube, width, height) {}
+	TetrahedralFilter_C(const Cube &cube, unsigned width, unsigned height) : Lut3DFilter_C(cube, width, height) {}
 
 	void process(const graphengine::BufferDescriptor in[], const graphengine::BufferDescriptor out[],
 	             unsigned i, unsigned left, unsigned right, void *, void *) const noexcept override
@@ -488,7 +488,7 @@ std::unique_ptr<graphengine::Filter> create_lut3d_impl(const Cube &cube, unsigne
 #endif
 	if (!ret) {
 		if (interp == Interpolation::TETRA)
-			ret = std::make_unique<TetrahedralFilters_C>(cube, width, height);
+			ret = std::make_unique<TetrahedralFilter_C>(cube, width, height);
 		else
 			ret = std::make_unique<TrilinearFilter_C>(cube, width, height);
 	}
