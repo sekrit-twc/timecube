@@ -2,7 +2,6 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 #include <graphengine/graph.h>
 #include <graphengine/filter.h>

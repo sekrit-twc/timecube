@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <climits>
 #include <cmath>
 #include <cstdint>
@@ -158,6 +157,8 @@ public:
 	{
 		m_scale = 1.0f / (cube.domain_max[plane] - cube.domain_min[plane]);
 		m_offset = -cube.domain_min[plane] * m_scale;
+
+		m_lut.resize(cube.n);
 
 		for (size_t i = 0; i < cube.n; ++i) {
 			m_lut[i] = cube.lut[i * 3 + plane];
