@@ -1,5 +1,5 @@
 MY_CFLAGS := -O2 -fPIC $(CFLAGS)
-MY_CXXFLAGS := -std=c++14 -O2 -fPIC -fvisibility=hidden $(CXXFLAGS)
+MY_CXXFLAGS := -std=c++17 -O2 -fPIC -fvisibility=hidden $(CXXFLAGS)
 MY_CPPFLAGS := -DGRAPHENGINE_IMPL_NAMESPACE=timecube -DNDEBUG -Igraphengine/include -Itimecube -Ivsxx -Ivsxx/vapoursynth $(CPPFLAGS)
 MY_LDFLAGS := $(LDFLAGS)
 MY_LIBS := $(LIBS)
