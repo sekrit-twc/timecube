@@ -48,6 +48,14 @@ int main(int argc, char **argv)
 
 	try {
 		timecube::Cube cube = timecube::read_cube_from_file(argv[1]);
+		std::cout << "title: " << cube.title << '\n';
+		std::cout << "size: " << cube.n;
+		if (cube.is_3d)
+			std::cout << 'x' << cube.n << 'x' << cube.n;
+		std::cout << '\n';
+
+		std::cout << "domain min: " << cube.domain_min[0] << ' ' << cube.domain_min[1] << ' ' << cube.domain_min[2] << '\n';
+		std::cout << "domain max: " << cube.domain_max[0] << ' ' << cube.domain_max[1] << ' ' << cube.domain_max[2] << '\n';
 		std::cout << "first entry: " << cube.lut[0] << ' ' << cube.lut[1] << ' ' << cube.lut[2] << '\n';
 		std::cout << "last entry: " << cube.lut[cube.lut.size() - 3] << ' ' << cube.lut[cube.lut.size() - 2] << ' ' << cube.lut[cube.lut.size() - 1] << '\n';
 
