@@ -352,7 +352,7 @@ void from_float(const void *src, void *dst, unsigned left, unsigned right, float
 	long maxval = (1UL << depth) - 1;
 
 	for (unsigned i = left; i < right; ++i) {
-		dstp[i] = static_cast<T>(std::min(std::lrint(srcp[i] * scale + offset), maxval));
+		dstp[i] = static_cast<T>(std::clamp(std::lrint(srcp[i] * scale + offset), 0L, maxval));
 	}
 }
 
@@ -394,7 +394,7 @@ PixelIOFilter::PixelIOFilter(from_float_tag, unsigned width, unsigned height, co
 	m_desc.num_deps = 1;
 	m_desc.num_planes = 1;
 	m_desc.step = 1;
-	m_desc.alignment_mask = 0x15;
+	m_desc.alignment_mask = 0xF;
 
 	std::tie(m_scale, m_offset) = get_scale_offset({ PixelType::FLOAT }, to);
 }
@@ -410,7 +410,7 @@ PixelIOFilter::PixelIOFilter(to_float_tag, unsigned width, unsigned height, cons
 	m_desc.num_deps = 1;
 	m_desc.num_planes = 1;
 	m_desc.step = 1;
-	m_desc.alignment_mask = 0x15;
+	m_desc.alignment_mask = 0xF;
 
 	std::tie(m_scale, m_offset) = get_scale_offset(from, { PixelType::FLOAT });
 }

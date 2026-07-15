@@ -32,17 +32,39 @@ struct FileCloser {
 	throw std::system_error{ errno, std::system_category() };
 }
 
-void read_line(char *buf, FILE *f)
-{
-	do {
-		if (!std::fgets(buf, LINE_LEN, f)) {
-			if (std::feof(f))
-				throw std::runtime_error{ "end of file" };
-			else
-				throw_system_error();
-		}
-	} while (buf[0] == '#' || buf[0] == '\n');
-}
+struct ReadLineFile {
+	FILE *f;
+
+	void operator()(char *buf)
+	{
+		do {
+			if (!std::fgets(buf, LINE_LEN, f)) {
+				if (std::feof(f))
+					throw std::runtime_error{ "end of file" };
+				else
+					throw_system_error();
+			}
+		} while (buf[0] == '#' || buf[0] == '\n');
+	}
+};
+
+struct ReadLineStringView {
+	std::string_view sv;
+
+	void operator()(char *buf)
+	{
+		do {
+			if (sv.empty())
+				throw std::runtime_error{ "end of buffer" };
+
+			std::string_view frag = sv.substr(0, LINE_LEN - 1);
+			size_t len = std::min(frag.find('\n'), frag.size() - 1) + 1;
+			std::copy_n(sv.begin(), len, buf);
+			buf[len] = '\0';
+			sv = sv.substr(len);
+		} while (buf[0] == '#' || buf[0] == '\n');
+	}
+};
 
 std::string_view skip_space(std::string_view buf)
 {
@@ -54,8 +76,8 @@ std::string_view parse_number(std::string_view buf, T *dst)
 {
 	std::size_t end_idx = std::min(buf.find_first_of(" \t\n"), buf.size());
 
-	std::from_chars_result res = std::from_chars(&*buf.begin(), &*buf.begin() + end_idx, *dst);
-	if (res.ec != std::error_code{} || res.ptr != &*buf.begin() + end_idx)
+	std::from_chars_result res = std::from_chars(buf.data(), buf.data() + end_idx, *dst);
+	if (res.ec != std::error_code{} || res.ptr != buf.data() + end_idx)
 		throw std::runtime_error{ "invalid number" };
 
 	return buf.substr(end_idx);
@@ -63,6 +85,8 @@ std::string_view parse_number(std::string_view buf, T *dst)
 
 bool is_keyword(std::string_view buf, std::string_view keyword)
 {
+	// 5.3  NOTE: Some files use carriage return (\r, 0x0D, 13) as line separator, alone or with a newline character.
+	// These files are not valid cube files, as some readers do not support files with carriage return.
 	size_t kw_size = keyword.size();
 	return buf.size() > kw_size && buf.substr(0, kw_size) == keyword &&
 		(buf[kw_size] == ' ' || buf[kw_size] == '\t' || buf[kw_size] == '\n');
@@ -80,7 +104,7 @@ std::string parse_title(std::string_view buf)
 	if (end == std::string_view::npos)
 		throw std::runtime_error{ "missing closing quote in TITLE" };
 
-	return std::string{ buf.substr(1, end) };
+	return std::string{ buf.substr(1, end - 1) };
 }
 
 void parse_domain_minmax(std::string_view buf, float dst[3])
@@ -125,31 +149,18 @@ size_t lut_size(uint_least32_t n, bool is_3d)
 	return size;
 }
 
-} // namespace
-
-
-Cube read_cube_from_file(const char *path)
+template <class T>
+Cube read_cube(T read_line)
 {
 	Cube cube;
-	std::unique_ptr<std::FILE, FileCloser> file_uptr;
-
-#ifdef _WIN32
-	file_uptr.reset(_wfopen(std::filesystem::u8path(path).c_str(), L"r"));
-#else
-	file_uptr.reset(std::fopen(path, "r"));
-#endif
-	std::FILE *file = file_uptr.get();
 	char buf[LINE_LEN];
 	std::string_view sv;
-
-	if (!file)
-		throw_system_error();
 
 	// Headers.
 	bool has_lut_size = false;
 
 	while (true) {
-		read_line(buf, file);
+		read_line(buf);
 		sv = buf;
 
 		if (is_keyword(sv, "TITLE")) {
@@ -183,7 +194,7 @@ Cube read_cube_from_file(const char *path)
 	if (!has_lut_size)
 		throw std::runtime_error{ "missing LUT declaration" };
 
-	if (cube.n < 2 || cube.n > (cube.is_3d ? 256U : 65536U))
+	if (cube.n < 2 || cube.n >(cube.is_3d ? 256U : 65536U))
 		throw std::runtime_error{ "invalid LUT size" };
 	if (cube.domain_min[0] > cube.domain_max[0] || cube.domain_min[1] > cube.domain_max[1] || cube.domain_min[2] > cube.domain_max[2])
 		throw std::runtime_error{ "invalid domain" };
@@ -195,7 +206,7 @@ Cube read_cube_from_file(const char *path)
 	parse_lut_entry(sv, &*(cube.lut.end() - 3));
 
 	for (unsigned i = 1; i < size; ++i) {
-		read_line(buf, file);
+		read_line(buf);
 		sv = buf;
 
 		cube.lut.insert(cube.lut.end(), 3, 0.0f);
@@ -203,6 +214,29 @@ Cube read_cube_from_file(const char *path)
 	}
 
 	return cube;
+}
+
+} // namespace
+
+
+Cube read_cube_from_file(const char *path)
+{
+	std::unique_ptr<std::FILE, FileCloser> file_uptr;
+
+#ifdef _WIN32
+	file_uptr.reset(_wfopen(std::filesystem::u8path(path).c_str(), L"r"));
+#else
+	file_uptr.reset(std::fopen(path, "r"));
+#endif
+	if (!file_uptr)
+		throw_system_error();
+
+	return read_cube(ReadLineFile{ file_uptr.get() });
+}
+
+Cube read_cube_from_buffer(const void *data, size_t size)
+{
+	return read_cube(ReadLineStringView{ std::string_view{ static_cast<const char *>(data), size } });
 }
 
 } // namespace timecube

@@ -592,7 +592,7 @@ void float_to_word_avx2(const void *src, void *dst, unsigned left, unsigned righ
 	uint16_t *dstp = static_cast<uint16_t *>(dst);
 	const __m256 scale_ps = _mm256_set1_ps(scale);
 	const __m256 offset_ps = _mm256_set1_ps(offset);
-	const __m256i maxval = _mm256_set1_epi8((1U << depth) - 1);
+	const __m256i maxval = _mm256_set1_epi16((1U << depth) - 1);
 
 	for (unsigned i = left; i < right; i += 16) {
 		__m256 lo = _mm256_load_ps(srcp + i + 0);

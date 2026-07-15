@@ -28,6 +28,8 @@ struct Cube : public ::timecube_lut {
 
 Cube read_cube_from_file(const char *path);
 
+Cube read_cube_from_buffer(const void *data, size_t size);
+
 } // namespace timecube
 
 #endif /* TIMECUBE_CUBE_H_ */

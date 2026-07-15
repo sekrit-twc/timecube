@@ -267,7 +267,7 @@ protected:
 			m_lut[i * 4 + 2] = cube.lut[i * 3 + 2];
 		}
 
-		m_desc.alignment_mask = 0x15;
+		m_desc.alignment_mask = 0xF;
 	}
 };
 
@@ -677,7 +677,7 @@ void float_to_word_avx512(const void *src, void *dst, unsigned left, unsigned ri
 	uint16_t *dstp = static_cast<uint16_t *>(dst);
 	const __m512 scale_ps = _mm512_set1_ps(scale);
 	const __m512 offset_ps = _mm512_set1_ps(offset);
-	const __m256i maxval = _mm256_set1_epi8((1U << depth) - 1);
+	const __m256i maxval = _mm256_set1_epi16((1U << depth) - 1);
 
 	for (unsigned i = left; i < right; i += 16) {
 		__m512 x;

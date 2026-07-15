@@ -563,7 +563,7 @@ void float_to_word_sse41(const void *src, void *dst, unsigned left, unsigned rig
 	uint16_t *dstp = static_cast<uint16_t *>(dst);
 	const __m128 scale_ps = _mm_set_ps1(scale);
 	const __m128 offset_ps = _mm_set_ps1(offset);
-	const __m128i maxval = _mm_set1_epi8((1U << depth) - 1);
+	const __m128i maxval = _mm_set1_epi16((1U << depth) - 1);
 
 	for (unsigned i = left; i < right; i += 8) {
 		__m128i lo, hi;

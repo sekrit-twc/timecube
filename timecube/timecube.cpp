@@ -100,11 +100,14 @@ public:
 } // namespace
 
 
-timecube_lut *timecube_lut_read(const void *data, size_t size, timecube_lut_format_e format)
+timecube_lut *timecube_lut_read(const void *data, size_t size, timecube_lut_format_e format) try
 {
 	if (format != TIMECUBE_LUT_ADOBE_CUBE)
 		return nullptr;
 
+	auto cube = std::make_unique<timecube::Cube>(timecube::read_cube_from_buffer(data, size));
+	return cube.release();
+} catch (...) {
 	return nullptr;
 }
 
@@ -140,14 +143,14 @@ int timecube_lut_set_dimensions(timecube_lut *ptr, size_t dim, int is_3d) try
 {
 	if (!is_3d && (dim < 2 || dim > 65536))
 		return 1;
-	if (is_3d && dim > 256)
+	if (is_3d && (dim < 2 || dim > 256))
 		return 1;
 
 	timecube::Cube *cube = static_cast<timecube::Cube *>(ptr);
 	cube->n = static_cast<uint_least32_t>(dim);
 	cube->is_3d = is_3d;
 	cube->lut.clear();
-	cube->lut.resize(is_3d ? dim * dim * dim : dim);
+	cube->lut.resize((is_3d ? dim * dim * dim  : dim) * 3);
 	return 0;
 } catch (...) {
 	return 1;
@@ -170,14 +173,14 @@ void timecube_lut_set_domain(timecube_lut *ptr, const float min[3], const float 
 void timecube_lut_get_entry(const timecube_lut *ptr, unsigned r, unsigned g, unsigned b, float entry[3])
 {
 	const timecube::Cube *cube = static_cast<const timecube::Cube *>(ptr);
-	size_t idx = cube->is_3d ? b * cube->n * cube->n + g * cube->n + r : r * 3;
+	size_t idx = (cube->is_3d ? b * cube->n * cube->n + g * cube->n + r : r) * 3;
 	std::copy_n(cube->lut.begin() + idx, 3, entry);
 }
 
 void timecube_lut_set_entry(timecube_lut *ptr, unsigned r, unsigned g, unsigned b, const float entry[3])
 {
 	timecube::Cube *cube = static_cast<timecube::Cube *>(ptr);
-	size_t idx = cube->is_3d ? b * cube->n * cube->n + g * cube->n + r : r * 3;
+	size_t idx = (cube->is_3d ? b * cube->n * cube->n + g * cube->n + r : r) * 3;
 	std::copy_n(entry, 3, cube->lut.begin() + idx);
 }
 
