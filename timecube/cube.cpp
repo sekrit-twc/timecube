@@ -1,9 +1,9 @@
-#include <cctype>
+#include <algorithm>
 #include <cerrno>
 #include <charconv>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
-#include <cstring>
 #include <memory>
 #include <stdexcept>
 #include <string>
